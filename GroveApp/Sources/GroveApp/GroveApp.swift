@@ -138,6 +138,9 @@ struct GroveApp: App {
 
 extension Notification.Name {
     static let newMeeting = Notification.Name("app.grove.newMeeting")
+    /// Posted by chat citations. userInfo: "meetingID" (UUID), "time"
+    /// (TimeInterval) — the transcript moment to open.
+    static let navigateToMeeting = Notification.Name("app.grove.navigateToMeeting")
 }
 
 private struct MenuBarContent: View {
@@ -180,6 +183,7 @@ struct RootView: View {
     @Environment(MeetingLibrary.self) private var library
     @State private var selection: Meeting.ID?
     @State private var showingNewMeeting = false
+    @State private var transcriptSeek: TranscriptSeek?
 
     var body: some View {
         NavigationSplitView {
@@ -189,7 +193,7 @@ struct RootView: View {
             if session.isBusy {
                 RecordingView()
             } else if let meeting = library.meetings.first(where: { $0.id == selection }) {
-                MeetingDetailView(meeting: meeting)
+                MeetingDetailView(meeting: meeting, seek: $transcriptSeek)
             } else {
                 HomeView(newMeeting: { showingNewMeeting = true }, selection: $selection)
             }
@@ -226,6 +230,13 @@ struct RootView: View {
             Text(session.errorMessage ?? library.loadError ?? "")
         }
         .task { library.reload() }
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToMeeting)) { note in
+            guard let id = note.userInfo?["meetingID"] as? UUID else { return }
+            selection = id
+            if let time = note.userInfo?["time"] as? TimeInterval {
+                transcriptSeek = TranscriptSeek(meetingID: id, time: time)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .newMeeting)) { _ in
             guard !session.isBusy else { return }
             showingNewMeeting = true

@@ -5,8 +5,11 @@ import SwiftUI
 ///
 /// Lives behind the home screen rather than in the sidebar because it is about
 /// the library as a whole, not any one meeting. Every answer lists the exact
-/// transcript excerpts it was written from; an answer that rests on nothing is
-/// refused by `MeetingChat` before the model is ever called.
+/// transcript excerpts the model saw, numbered to match the answer's [n]
+/// citations (which `MeetingChat` validates — an invented number is stripped),
+/// and clicking a source opens that meeting's transcript at that moment. An
+/// answer that rests on nothing is refused by `MeetingChat` before the model
+/// is ever called.
 struct ChatView: View {
     @Environment(MeetingLibrary.self) private var library
     @Environment(\.dismiss) private var dismiss
@@ -53,14 +56,25 @@ struct ChatView: View {
                                 Text(answer.text)
                                 if !answer.excerpts.isEmpty {
                                     VStack(alignment: .leading, spacing: 4) {
-                                        ForEach(answer.excerpts) { excerpt in
-                                            Text(
-                                                "\(excerpt.meetingTitle) · "
-                                                    + TimestampLinker.clockString(excerpt.start)
-                                                    + " · \(excerpt.speaker.displayName)"
-                                            )
-                                            .font(.caption)
+                                        Text("SOURCES")
+                                            .font(.caption2.weight(.semibold))
                                             .foregroundStyle(.secondary)
+                                        ForEach(
+                                            Array(answer.excerpts.enumerated()), id: \.element.id
+                                        ) { index, excerpt in
+                                            Button {
+                                                navigate(to: excerpt)
+                                            } label: {
+                                                Text(
+                                                    "\(index + 1). \(excerpt.meetingTitle) · "
+                                                        + TimestampLinker.clockString(excerpt.start)
+                                                        + " · \(excerpt.speaker.displayName)"
+                                                )
+                                                .font(.caption)
+                                            }
+                                            .buttonStyle(.plain)
+                                            .foregroundStyle(Color.accentColor)
+                                            .help("Open the transcript at this moment")
                                         }
                                     }
                                     .padding(.top, 2)
@@ -103,6 +117,16 @@ struct ChatView: View {
         }
         .frame(minWidth: 540, minHeight: 440)
         .task { availability = MeetingChat().availability }
+    }
+
+    /// Opens the cited meeting at the cited moment. The notification carries
+    /// the meeting and time; the library handles the selection and the scroll.
+    private func navigate(to excerpt: MeetingChat.Excerpt) {
+        NotificationCenter.default.post(
+            name: .navigateToMeeting,
+            object: nil,
+            userInfo: ["meetingID": excerpt.meetingID, "time": excerpt.start])
+        dismiss()
     }
 
     private func ask() {

@@ -76,10 +76,11 @@ func printUsage() {
           \(NoteTemplate.builtIns.map(\.id).joined(separator: ", "))
 
         ASK
-          Answers a question from your past meetings, on-device. Every claim is
-          tied to a transcript excerpt, and the excerpts used are printed as
-          sources. When nothing in your meetings covers the question, Grove
-          says so instead of composing an answer.
+          Answers a question from your past meetings, on-device. Claims are cited
+          as [n] against the numbered sources printed below the answer — the
+          exact transcript excerpts the model was given, with invented citation
+          numbers stripped. When nothing in your meetings covers the question,
+          Grove says so instead of composing an answer.
 
         DEBUG-AUDIO
           Measures mic level and tap callbacks in every capture configuration.
@@ -364,9 +365,10 @@ func runAsk(_ arguments: Arguments) async throws {
         print("Sources:")
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-        for excerpt in answer.excerpts {
+        for (index, excerpt) in answer.excerpts.enumerated() {
             print(String(
-                format: "  %@  %@  [%@] %@",
+                format: "  %d. %@  %@  [%@] %@",
+                index + 1,
                 formatter.string(from: excerpt.startedAt),
                 excerpt.meetingTitle as NSString,
                 TimestampLinker.clockString(excerpt.start),

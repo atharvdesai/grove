@@ -43,6 +43,27 @@ final class TranscriptTests: XCTestCase {
         XCTAssertEqual(transcript.merged(gapTolerance: 2.0).count, 2)
     }
 
+    func testSegmentAtFindsTheCoveringSegment() {
+        var transcript = Transcript()
+        transcript.insert(segment(.me, "early", 0, 10))
+        transcript.insert(segment(.them, "later", 60, 70))
+
+        XCTAssertEqual(transcript.segment(at: 5)?.text, "early")
+        XCTAssertEqual(transcript.segment(at: 65)?.text, "later")
+    }
+
+    func testSegmentAtFallsForwardAcrossAGap() {
+        var transcript = Transcript()
+        transcript.insert(segment(.me, "early", 0, 10))
+        transcript.insert(segment(.them, "later", 60, 70))
+
+        // A reference landing in silence belongs to whatever is said next;
+        // one past the end belongs to the last thing said.
+        XCTAssertEqual(transcript.segment(at: 30)?.text, "later")
+        XCTAssertEqual(transcript.segment(at: 600)?.text, "later")
+        XCTAssertNil(Transcript().segment(at: 30))
+    }
+
     func testFormattedLabelsSpeakersForTheEnhancementPrompt() {
         var transcript = Transcript()
         transcript.insert(segment(.me, "What's the number?", 0, 1))

@@ -31,10 +31,13 @@ Adhikari (MIT) — see [Attribution](#attribution).
   meeting.
 - **Timestamps in the notes** — each line of the written-up notes gets a
   `(mm:ss)` reference to the transcript moment it rests on, computed by
-  matching, never generated.
-- **Ask your meetings** — chat across every saved meeting, on-device. Every
-  answer lists the exact transcript excerpts it was written from, and when
-  nothing in your meetings covers the question, Grove says so instead of
+  matching, never generated. In the app, clicking one jumps to that moment in
+  the transcript.
+- **Ask your meetings** — chat across every saved meeting, on-device. Claims
+  are cited as [1], [2]… against a numbered list of the exact transcript
+  excerpts the model was given; a citation number that points at nothing real
+  is stripped, and clicking a source opens the transcript at that moment.
+  When nothing in your meetings covers the question, Grove says so instead of
   composing an answer.
 - **Plain files, no lock-in** — Markdown + JSON in `~/Documents/Grove`.
   Greppable, syncable, Obsidian-friendly.

@@ -2,6 +2,16 @@ import Observation
 import GroveKit
 import SwiftUI
 
+/// A one-shot request to open a meeting's transcript at a moment, posted by
+/// chat citations and carried down to the detail view. The nonce keeps two
+/// requests for the same moment distinct, so `.onChange` fires every time —
+/// otherwise clicking the same citation twice would do nothing the second time.
+struct TranscriptSeek: Equatable {
+    let meetingID: Meeting.ID
+    let time: TimeInterval
+    let nonce = UUID()
+}
+
 /// Saved meetings, read straight off disk.
 ///
 /// There is no database and no index: `MeetingStore` reads the same Markdown and
@@ -290,12 +300,18 @@ private struct MeetingRow: View {
 /// A saved meeting: the polished notes, with the raw material behind a picker.
 struct MeetingDetailView: View {
     let meeting: Meeting
+    /// External request to open the transcript at a moment (a chat citation).
+    /// A binding so the detail can consume it: clearing it here keeps a stale
+    /// request from re-firing when this view is recreated later.
+    @Binding var seek: TranscriptSeek?
     @Environment(MeetingLibrary.self) private var library
     @Environment(MeetingSession.self) private var session
     /// Resolved against `availableTabs` before use — a meeting that was never
     /// enhanced has no Notes tab, and defaulting to it stranded the reader on
     /// "These notes were not enhanced." instead of the transcript they do have.
     @State private var tab: Tab?
+    @State private var pendingSeek: TranscriptSeek?
+    @State private var highlightedSegment: TranscriptSegment.ID?
 
     enum Tab: String, CaseIterable, Identifiable {
         case notes = "Notes"
@@ -358,14 +374,57 @@ struct MeetingDetailView: View {
 
             Divider()
 
-            ScrollView {
-                content
-                    .padding(20)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    content
+                        .padding(20)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .onAppear(perform: consumeSeek)
+                .onChange(of: seek) { _, _ in consumeSeek() }
+                .onChange(of: pendingSeek) { _, _ in
+                    // The transcript rows exist only after the tab switch has
+                    // rendered, so the scroll waits one run-loop turn.
+                    DispatchQueue.main.async { applyPendingSeek(using: proxy) }
+                }
             }
         }
         // Selecting a different meeting must not carry a tab that meeting lacks.
-        .onChange(of: meeting.id) { _, _ in tab = nil }
+        .onChange(of: meeting.id) { _, _ in
+            tab = nil
+            pendingSeek = nil
+            highlightedSegment = nil
+        }
+    }
+
+    /// Takes ownership of an external seek aimed at this meeting: switches to
+    /// the transcript and queues the scroll. Clearing the binding is what
+    /// stops the same request from re-applying when the view is recreated.
+    private func consumeSeek() {
+        guard let seek, seek.meetingID == meeting.id else { return }
+        tab = .transcript
+        pendingSeek = seek
+        self.seek = nil
+    }
+
+    /// From a note's own `(m:ss)` reference — same destination as a chat
+    /// citation, just already inside this meeting.
+    private func seekInTranscript(to time: TimeInterval) {
+        tab = .transcript
+        pendingSeek = TranscriptSeek(meetingID: meeting.id, time: time)
+    }
+
+    private func applyPendingSeek(using proxy: ScrollViewProxy) {
+        guard let seek = pendingSeek, seek.meetingID == meeting.id else { return }
+        pendingSeek = nil
+        guard let segment = meeting.transcript.segment(at: seek.time) else { return }
+        withAnimation { proxy.scrollTo(segment.id, anchor: .top) }
+        highlightedSegment = segment.id
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            if highlightedSegment == segment.id {
+                withAnimation { highlightedSegment = nil }
+            }
+        }
     }
 
     /// The chosen tab if it still exists for this meeting, else the first one
@@ -390,7 +449,7 @@ struct MeetingDetailView: View {
         switch selectedTab {
         case .notes:
             if let notes = meeting.enhancedNotes {
-                NotesText(markdown: notes)
+                NotesText(markdown: notes) { time in seekInTranscript(to: time) }
             } else {
                 Text("These notes were not enhanced.").foregroundStyle(.secondary)
             }
@@ -415,6 +474,13 @@ struct MeetingDetailView: View {
                             .textSelection(.enabled)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    .padding(6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(
+                                highlightedSegment == segment.id
+                                    ? Color.accentColor.opacity(0.18) : .clear))
+                    .id(segment.id)
                 }
             }
         }

@@ -1,3 +1,4 @@
+import GroveKit
 import SwiftUI
 
 /// Renders the subset of Markdown the enhancement pass actually emits:
@@ -10,6 +11,9 @@ import SwiftUI
 /// templates ever emit tables or nested lists, revisit that trade.
 struct NotesText: View {
     let markdown: String
+    /// Called with the timestamp when the reader clicks a line's trailing
+    /// `(m:ss)` reference. nil renders references as plain text.
+    var onSeek: ((TimeInterval) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -22,10 +26,10 @@ struct NotesText: View {
                 case .bullet(let text):
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("•").foregroundStyle(.secondary)
-                        Text(inline(text)).fixedSize(horizontal: false, vertical: true)
+                        linkedLine(text)
                     }
                 case .paragraph(let text):
-                    Text(inline(text)).fixedSize(horizontal: false, vertical: true)
+                    linkedLine(text)
                 }
             }
         }
@@ -54,6 +58,25 @@ struct NotesText: View {
                 return .bullet(String(line.dropFirst(marker.count)))
             }
             return .paragraph(line)
+        }
+    }
+
+    /// A note line, with its trailing `(m:ss)` reference — when it has one —
+    /// rendered as a button that jumps into the transcript. The clock text
+    /// stays in the Markdown either way, so export and copy are unchanged.
+    @ViewBuilder
+    private func linkedLine(_ text: String) -> some View {
+        if let onSeek, let (body, time) = TimestampLinker.trailingClock(in: text) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(inline(body)).fixedSize(horizontal: false, vertical: true)
+                Button(TimestampLinker.clockString(time)) { onSeek(time) }
+                    .buttonStyle(.plain)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(Color.accentColor)
+                    .help("Jump to this moment in the transcript")
+            }
+        } else {
+            Text(inline(text)).fixedSize(horizontal: false, vertical: true)
         }
     }
 

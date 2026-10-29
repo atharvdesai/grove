@@ -50,8 +50,13 @@ public struct MeetingChat: Sendable {
     }
 
     public struct Answer: Sendable, Equatable {
+        /// The model's prose. Citations in it are `[n]` markers validated
+        /// against `excerpts` — a marker that numbers nothing real was removed
+        /// before this text was returned.
         public let text: String
         /// The exact transcript excerpts the model was given, best first.
+        /// Citation `[n]` in `text` refers to `excerpts[n - 1]`, and the UI
+        /// numbers its source list the same way.
         public let excerpts: [Excerpt]
 
         public init(text: String, excerpts: [Excerpt]) {
@@ -146,7 +151,7 @@ public struct MeetingChat: Sendable {
         let excerpts = ranked.map { $0.excerpt }
 
         let context = Self.context(for: excerpts, wordBudget: model.chunkWordLimit)
-        let text = try await model.generate(
+        let raw = try await model.generate(
             instructions: instructions,
             prompt: """
                 Transcript excerpts from past meetings:
@@ -155,19 +160,23 @@ public struct MeetingChat: Sendable {
 
                 Question: \(question)
                 """)
+        let text = Self.validateCitations(in: raw, sourceCount: excerpts.count)
         return Answer(text: text, excerpts: excerpts)
     }
 
     private var instructions: String {
         """
         You answer questions about the user's past meetings using only the \
-        transcript excerpts provided.
+        numbered transcript excerpts provided.
 
         Rules:
         - The excerpts are your only source of fact. Never use outside \
         knowledge or guess at what a meeting probably concluded.
-        - Back every claim with its source as (meeting title, mm:ss), using \
-        the timestamp on the excerpt it came from.
+        - Cite every claim with the number of the excerpt it came from, \
+        written exactly as [1] or [2]. Use only numbers from the excerpts you \
+        were given: never invent a citation, and never write times or meeting \
+        titles as references. The reader is shown the real excerpts next to \
+        your answer, so a claim you cannot number is a claim to leave out.
         - The excerpts are the most relevant passages that exist, not the \
         whole meetings. If they do not answer the question, say that plainly \
         rather than bridging the gap.
@@ -175,6 +184,27 @@ public struct MeetingChat: Sendable {
         it being agreed. Report only what the words show.
         - Be terse. No preamble, no "based on the excerpts" framing.
         """
+    }
+
+    /// Drops citation markers the model invented. A bracketed number renders
+    /// as a link in the app, and it is only honest when it numbers an excerpt
+    /// the model was actually shown — [0] and [99] point at nothing, so they
+    /// are removed rather than trusted. This proves a citation names a real
+    /// source; it cannot prove the claim beside it is faithful, which is why
+    /// the sources themselves are always displayed.
+    static func validateCitations(in text: String, sourceCount: Int) -> String {
+        guard let regex = try? NSRegularExpression(pattern: #"\s?\[(\d+)\]"#)
+        else { return text }
+        let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+        var result = text
+        // Reversed, so removing later text never invalidates an earlier range.
+        for match in matches.reversed() {
+            let number = Range(match.range(at: 1), in: result).flatMap { Int(result[$0]) }
+            let valid = number.map { (1...sourceCount).contains($0) } ?? false
+            guard !valid, let whole = Range(match.range, in: result) else { continue }
+            result.removeSubrange(whole)
+        }
+        return result
     }
 
     /// Formats excerpts for the prompt, oldest meeting first, until the word
@@ -188,10 +218,15 @@ public struct MeetingChat: Sendable {
         var used = 0
         var blocks: [String] = []
         // Chronological order reads as a conversation; relevance order already
-        // decided *which* excerpts made the cut.
-        for excerpt in excerpts.sorted(by: { ($0.startedAt, $0.start) < ($1.startedAt, $1.start) }) {
+        // decided *which* excerpts made the cut. The bracketed number is the
+        // excerpt's rank, matching the source list the reader sees, so [n] in
+        // the answer always means excerpts[n - 1].
+        let chronological = excerpts.enumerated().sorted {
+            ($0.element.startedAt, $0.element.start) < ($1.element.startedAt, $1.element.start)
+        }
+        for (rank, excerpt) in chronological {
             let line =
-                "Meeting: \(excerpt.meetingTitle) (\(dateFormatter.string(from: excerpt.startedAt)))\n"
+                "[\(rank + 1)] Meeting: \(excerpt.meetingTitle) (\(dateFormatter.string(from: excerpt.startedAt)))\n"
                 + "[\(TimestampLinker.clockString(excerpt.start))] "
                 + "[\(excerpt.speaker.displayName)] \(excerpt.text)"
             let words = line.split(separator: " ").count

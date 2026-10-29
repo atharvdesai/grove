@@ -12,7 +12,7 @@ private final class RecordingEngine: NoteWritingModel, @unchecked Sendable {
     private var _calls: [(instructions: String, prompt: String)] = []
     private let response: String
 
-    init(response: String = "The budget is forty thousand (Planning, 1:15).") {
+    init(response: String = "The budget is forty thousand [1].") {
         self.response = response
     }
 
@@ -84,11 +84,47 @@ final class MeetingChatTests: XCTestCase {
         let chat = MeetingChat(model: engine)
         let answer = try await chat.ask(
             question: "what budget was agreed", meetings: meetings())
-        XCTAssertEqual(answer.text, "The budget is forty thousand (Planning, 1:15).")
+        XCTAssertEqual(answer.text, "The budget is forty thousand [1].")
         XCTAssertEqual(answer.excerpts.first?.meetingTitle, "Planning")
         XCTAssertEqual(engine.calls.count, 1)
         XCTAssertTrue(engine.calls.first?.prompt.contains("forty thousand") == true)
         XCTAssertTrue(engine.calls.first?.prompt.contains("Question: what budget was agreed") == true)
+    }
+
+    func testFabricatedCitationNumbersAreStripped() async throws {
+        let engine = RecordingEngine(
+            response: "The budget is a million [9], as agreed [0], all of it [1].")
+        let chat = MeetingChat(model: engine)
+        let answer = try await chat.ask(
+            question: "what budget was agreed", meetings: meetings())
+        XCTAssertFalse(answer.text.contains("[9]"))
+        XCTAssertFalse(answer.text.contains("[0]"))
+        XCTAssertTrue(answer.text.contains("[1]"))
+    }
+
+    func testValidateCitationsKeepsRealNumbers() {
+        XCTAssertEqual(
+            MeetingChat.validateCitations(
+                in: "The budget is forty thousand [1]. See [2].", sourceCount: 2),
+            "The budget is forty thousand [1]. See [2].")
+    }
+
+    func testValidateCitationsRemovesInventedNumbersCleanly() {
+        XCTAssertEqual(
+            MeetingChat.validateCitations(
+                in: "The budget is a million [9].", sourceCount: 2),
+            "The budget is a million.")
+    }
+
+    func testContextNumbersExcerptsForCitation() {
+        let excerpts = [
+            MeetingChat.Excerpt(
+                id: UUID(), meetingID: UUID(), meetingTitle: "Planning",
+                startedAt: Date(), speaker: .them, start: 75, end: 80,
+                text: "the budget for next quarter is forty thousand")
+        ]
+        let context = MeetingChat.context(for: excerpts, wordBudget: 1_200)
+        XCTAssertTrue(context.contains("[1] Meeting: Planning"))
     }
 
     func testContextRespectsTheWordBudget() {

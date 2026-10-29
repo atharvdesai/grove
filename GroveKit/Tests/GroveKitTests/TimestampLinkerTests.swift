@@ -40,6 +40,33 @@ final class TimestampLinkerTests: XCTestCase {
         XCTAssertEqual(TimestampLinker.link(notes: notes, transcript: Transcript()), notes)
     }
 
+    func testParseClockReadsBothFormats() {
+        XCTAssertEqual(TimestampLinker.parseClock("1:15"), 75)
+        XCTAssertEqual(TimestampLinker.parseClock("01:15"), 75)
+        XCTAssertEqual(TimestampLinker.parseClock("1:01:01"), 3661)
+    }
+
+    func testParseClockRejectsNonClocks() {
+        XCTAssertNil(TimestampLinker.parseClock(""))
+        XCTAssertNil(TimestampLinker.parseClock("notes"))
+        XCTAssertNil(TimestampLinker.parseClock("1:75"))  // no such second
+        XCTAssertNil(TimestampLinker.parseClock("1:2:3:4"))
+        XCTAssertNil(TimestampLinker.parseClock("1:"))
+    }
+
+    func testTrailingClockReadsBackWhatLinkWrote() {
+        let line = "- Budget set at forty thousand for next quarter (1:15)"
+        let parsed = TimestampLinker.trailingClock(in: line)
+        XCTAssertEqual(parsed?.text, "- Budget set at forty thousand for next quarter")
+        XCTAssertEqual(parsed?.time, 75)
+    }
+
+    func testTrailingClockIgnoresLinesWithoutOne() {
+        XCTAssertNil(TimestampLinker.trailingClock(in: "- Budget set at forty thousand"))
+        XCTAssertNil(TimestampLinker.trailingClock(in: "- A parenthetical (not a time)"))
+        XCTAssertNil(TimestampLinker.trailingClock(in: "- trailing paren but no clock (see above)"))
+    }
+
     func testClockStringFormatsUnderAndOverAnHour() {
         XCTAssertEqual(TimestampLinker.clockString(75), "1:15")
         XCTAssertEqual(TimestampLinker.clockString(0), "0:00")

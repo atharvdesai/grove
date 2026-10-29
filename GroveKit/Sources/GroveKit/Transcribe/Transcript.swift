@@ -150,6 +150,18 @@ public struct Transcript: Codable, Sendable, Equatable {
             .filter { !$0.isEmpty }
     }
 
+    /// The merged segment best matching a note's `(mm:ss)` reference: the one
+    /// containing that moment, else the next to start, else the last. This is
+    /// how a timestamp written into the notes finds its way back to a real
+    /// transcript moment when the reader clicks it.
+    public func segment(at time: TimeInterval) -> TranscriptSegment? {
+        let merged = merged()
+        if let covering = merged.first(where: { $0.start <= time && time < $0.end }) {
+            return covering
+        }
+        return merged.first(where: { $0.start >= time }) ?? merged.last
+    }
+
     /// Merges runs by the same speaker so the reader sees paragraphs rather than
     /// one line per utterance.
     public func merged(gapTolerance: TimeInterval = 2.0) -> [TranscriptSegment] {
