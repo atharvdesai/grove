@@ -1,0 +1,70 @@
+name: CI
+
+# Manual-only for now: this is a private repo, and macOS runners burn Actions
+# minutes at a 10x multiplier. Nothing runs (or spends) until someone triggers
+# it. Re-enable push/pull_request once the repo is public, where Actions is free.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    # macOS 26 is required, not preferred: SpeechAnalyzer, SpeechDetector and
+    # Foundation Models do not exist earlier, and both packages declare
+    # .macOS("26.0"). Pinned rather than macos-latest so a runner rollover
+    # cannot silently move the SDK under us.
+    runs-on: macos-26
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Toolchain
+        run: |
+          swift --version
+          xcodebuild -version
+          sw_vers
+
+      # The version lived in three places and had already drifted once — the
+      # plists said 0.1.0 while the released tag was v0.1.1. Now VERSION is the
+      # source and this fails the build if a plist falls behind it.
+      - name: Version is in sync
+        run: ./scripts/sync-version.sh --check
+
+      - name: Build engine and CLI
+        run: swift build --package-path GroveKit
+
+      # The real value of this job. These cover transcript merging, echo dedup,
+      # transcript chunking, the enhancement refusal floor, and storage — all of
+      # which run against pure inputs or a stub engine, so they need neither
+      # audio hardware nor Apple Intelligence.
+      - name: Test
+        run: swift test --package-path GroveKit
+
+      - name: Build app
+        run: swift build --package-path GroveApp
+
+      # Catches breakage in the bundling step itself — a missing Info.plist key
+      # or a renamed executable only shows up here, never in `swift build`.
+      - name: Bundle Grove.app
+        run: |
+          cd GroveApp
+          ./scripts/bundle.sh release
+          test -x build/Grove.app/Contents/MacOS/Grove
+          test -f build/Grove.app/Contents/Resources/Grove.icns
+          plutil -lint build/Grove.app/Contents/Info.plist
+          codesign --verify --strict build/Grove.app
+
+      # A runner has no microphone, no output device, and no Apple Intelligence,
+      # so capture, transcription and enhancement cannot run here at all. This
+      # step exists to make that explicit rather than letting a green tick be
+      # read as "audio works".
+      - name: Note what CI did not cover
+        if: always()
+        run: |
+          echo "::notice::CI verified compilation and pure logic only."
+          echo "::notice::Audio capture, transcription and note enhancement are"
+          echo "::notice::untested here — no audio devices or Apple Intelligence"
+          echo "::notice::on GitHub runners. Verify those by hand; see CONTRIBUTING.md."

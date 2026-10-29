@@ -1,0 +1,71 @@
+name: Bug report
+description: Something in Grove did not work
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Every failure mode in Grove' audio pipeline returns success, so a
+        description alone usually cannot distinguish a dead capture path from a
+        healthy one. The diagnostic output below is what makes that possible.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `grove doctor`
+      description: From `GroveKit`, run `./.build/debug/grove doctor`.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: debug-audio
+    attributes:
+      label: Output of `grove debug-audio`
+      description: >
+        Required for anything about missing, empty, or wrong transcript text.
+        Play some audio while it runs. Without levels and callback counts a
+        capture bug cannot be diagnosed.
+      render: text
+
+  - type: input
+    id: hardware
+    attributes:
+      label: Mac model and macOS version
+      placeholder: MacBook Air M5, macOS 26.6
+    validations:
+      required: true
+
+  - type: dropdown
+    id: audio-route
+    attributes:
+      label: Were you on speakers or headphones?
+      description: >
+        On speakers your microphone also hears the far end, which is a known
+        source of duplicated or misattributed lines.
+      options:
+        - Speakers
+        - Headphones
+        - External audio interface
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you build it?
+      options:
+        - Built the app with scripts/bundle.sh
+        - Built and ran the CLI
+        - Both
+    validations:
+      required: true

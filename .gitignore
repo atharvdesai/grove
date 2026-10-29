@@ -1,0 +1,18 @@
+.DS_Store
+.build/
+build/
+*.png
+*.xcuserstate
+xcuserdata/
+node_modules/
+dist/
+target/
+*.wav
+*.gguf
+models/
+
+# Demo video: intermediate/raw capture is reproducible via media/scripts and
+# not worth keeping in history; the finished film ships as a Release asset
+# instead of a committed binary, so clones stay fast.
+media/raw/
+media/grove-demo.mp4
