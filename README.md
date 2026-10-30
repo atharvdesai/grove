@@ -10,9 +10,6 @@ model. Transcription, note writing and chat all run on-device. Signing in with
 Google is optional: it lets Grove read your calendar and send you your notes by
 email, and it is the only thing in the app that talks to anyone.
 
-Grove is built on [Oats](https://github.com/yuvrajadhikari/oats) by Yuvraj
-Adhikari (MIT) — see [Attribution](#attribution).
-
 > **Status: early.** Grove builds and runs on macOS 27 with the Command Line
 > Tools. Newer features — Google sign-in, calendar, email, quick notes, the
 > onboarding — are recent and not yet verified on-device end to end.
@@ -185,18 +182,10 @@ and enhancement can only be verified by hand on a real Mac.
 
 ## Roadmap
 
-- Calendar awareness: start notes from upcoming events instead of naming them.
-- Optional larger local models through the existing engine seam.
-- Per-guest speaker identification (real diarization) is deliberately out of
-  scope for now.
-
-## Attribution
-
-Grove is built on [Oats](https://github.com/yuvrajadhikari/oats) by Yuvraj
-Adhikari, used under the MIT License. The original license text is retained in
-[LICENSE](LICENSE). Grove's changes — meeting chat with cited sources,
-timestamped notes, the rename and repackage — are by Atharv Desai, also MIT.
+See [docs/build-plan.md](docs/build-plan.md): speaker identification with a
+"who's speaking?" prompt, and an optional choice of AI engine.
 
 ## License
 
-MIT — see [LICENSE](LICENSE). One edition, no paid tier, no open-core.
+MIT — see [LICENSE](LICENSE), which also carries the notices for code Grove
+builds on. One edition, no paid tier, no open-core.

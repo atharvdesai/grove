@@ -309,7 +309,7 @@ private struct AboutSettings: View {
                 .font(.callout)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
-            Link("github.com/yuvrajadhikari/grove", destination: URL(string: "https://github.com/yuvrajadhikari/grove")!)
+            Link("github.com/atharvdesai/grove", destination: URL(string: "https://github.com/atharvdesai/grove")!)
                 .font(.callout)
             Text("MIT licensed").font(.caption).foregroundStyle(.tertiary)
         }

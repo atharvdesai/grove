@@ -38,7 +38,7 @@ If you only want to *use* Grove, the one-line installer in the README is easier.
 For development, work from a checkout:
 
 ```bash
-git clone https://github.com/yuvrajadhikari/grove.git && cd grove
+git clone https://github.com/atharvdesai/grove.git && cd grove
 
 # The app
 cd GroveApp && ./scripts/bundle.sh debug --run
