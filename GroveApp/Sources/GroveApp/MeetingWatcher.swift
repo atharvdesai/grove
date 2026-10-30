@@ -12,7 +12,15 @@ import SwiftUI
 @Observable
 final class MeetingWatcher {
     /// A call that is on and waiting for an answer; drives the prompt.
-    private(set) var pendingApp: MeetingApp?
+    private(set) var pendingApp: MeetingApp? {
+        didSet {
+            guard pendingApp != oldValue else { return }
+            pendingEvent = pendingApp != nil && settings.useCalendar ? CalendarEvents.current() : nil
+        }
+    }
+    /// The calendar event the pending call is probably for, to name it in the
+    /// prompt: "Acme sync" says more than "Zoom call detected".
+    private(set) var pendingEvent: CalendarEvent?
 
     private let session: MeetingSession
     private let settings: AppSettings
@@ -134,6 +142,7 @@ final class MeetingWatcher {
 /// "Zoom call detected — Take notes?", floating over the call.
 struct MeetingPromptView: View {
     let app: MeetingApp
+    var event: CalendarEvent?
     let accept: () -> Void
     let decline: () -> Void
 
@@ -142,9 +151,19 @@ struct MeetingPromptView: View {
             GroveLogo(size: 18)
                 .accessibilityLabel("Grove")
 
-            Text(app.isBrowser ? "\(app.name) is using the mic" : "\(app.name) call detected")
-                .font(.callout.weight(.medium))
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 1) {
+                if let event, !event.title.isEmpty {
+                    Text(event.title)
+                        .font(.callout.weight(.medium))
+                    Text(app.name)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(app.isBrowser ? "\(app.name) is using the mic" : "\(app.name) call detected")
+                        .font(.callout.weight(.medium))
+                }
+            }
+            .lineLimit(1)
 
             Button("Take notes", action: accept)
                 .buttonStyle(.borderedProminent)
@@ -206,7 +225,8 @@ final class MeetingPromptController {
         guard let watcher else { return }
         let hosting = FirstMouseHostingView(
             rootView: MeetingPromptView(
-                app: app, accept: { watcher.accept() }, decline: { watcher.decline() }))
+                app: app, event: watcher.pendingEvent,
+                accept: { watcher.accept() }, decline: { watcher.decline() }))
         hosting.sizingOptions = [.preferredContentSize]
         hosting.layoutSubtreeIfNeeded()
 

@@ -25,6 +25,19 @@ public struct Meeting: Codable, Sendable, Identifiable, Equatable {
     /// those fall back to wall-clock elapsed.
     public var recordedDuration: TimeInterval?
 
+    /// Who was invited, from the calendar event the meeting matched. Optional
+    /// like every field added after the first release, so older meeting.json
+    /// files still decode.
+    public var attendees: [String]?
+
+    /// What to call the far side of the call instead of "Them" — the other
+    /// person in a 1:1, set from the calendar or by hand.
+    public var speakerName: String?
+
+    /// Action items ticked off, by their text. Keyed by text rather than a
+    /// position so editing notes.md by hand cannot tick the wrong item.
+    public var completedActionItems: [String]?
+
     public init(
         id: UUID = UUID(),
         title: String,
@@ -35,7 +48,10 @@ public struct Meeting: Codable, Sendable, Identifiable, Equatable {
         enhancedNotes: String? = nil,
         templateID: String = NoteTemplate.general.id,
         folder: String? = nil,
-        recordedDuration: TimeInterval? = nil
+        recordedDuration: TimeInterval? = nil,
+        attendees: [String]? = nil,
+        speakerName: String? = nil,
+        completedActionItems: [String]? = nil
     ) {
         self.id = id
         self.title = title
@@ -47,6 +63,20 @@ public struct Meeting: Codable, Sendable, Identifiable, Equatable {
         self.templateID = templateID
         self.folder = folder
         self.recordedDuration = recordedDuration
+        self.attendees = attendees
+        self.speakerName = speakerName
+        self.completedActionItems = completedActionItems
+    }
+
+    /// The label for a speaker in this meeting: "Me", or the other side's
+    /// name when one is known, else "Them".
+    public func displayName(for speaker: Speaker) -> String {
+        if speaker == .them, let name = speakerName?.trimmingCharacters(in: .whitespaces),
+            !name.isEmpty
+        {
+            return name
+        }
+        return speaker.displayName
     }
 
     /// How long the meeting actually ran. Prefers recorded time so a meeting

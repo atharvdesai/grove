@@ -68,7 +68,7 @@ struct ChatView: View {
                                                 Text(
                                                     "\(index + 1). \(excerpt.meetingTitle) · "
                                                         + TimestampLinker.clockString(excerpt.start)
-                                                        + " · \(excerpt.speaker.displayName)"
+                                                        + " · \(excerpt.speakerName)"
                                                 )
                                                 .font(.caption)
                                             }

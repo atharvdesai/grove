@@ -20,6 +20,8 @@
 	<string>1</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Grove reads the event you are in to name the meeting and note who attended. Your calendar never leaves this Mac.</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>Grove records system audio so it can transcribe your meetings entirely on this Mac.</string>
 	<key>NSHighResolutionCapable</key>

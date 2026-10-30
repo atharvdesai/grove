@@ -11,6 +11,8 @@ struct SettingsView: View {
                 .tabItem { Label("Permissions", systemImage: "lock.shield") }
             NotesSettings()
                 .tabItem { Label("Notes", systemImage: "text.alignleft") }
+            TemplatesSettings()
+                .tabItem { Label("Templates", systemImage: "list.bullet.rectangle") }
             AboutSettings()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
@@ -41,6 +43,7 @@ private struct GeneralSettings: View {
                 }
                 Toggle("Name and file meetings automatically", isOn: $settings.autoOrganize)
                 Toggle("Open Grove at login", isOn: $settings.openAtLogin)
+                Toggle("Use my calendar to name meetings", isOn: calendarBinding)
             } footer: {
                 Text(
                     "Grove notices Zoom, Teams, Meet in your browser, FaceTime, Slack and "
@@ -48,7 +51,8 @@ private struct GeneralSettings: View {
                         + "a browser always ask first. Untitled meetings are named, and "
                         + "filed into one of your existing folders, by the on-device model "
                         + "when they end. Grove can only notice calls while it is running, "
-                        + "so it opens at login and waits in the menu bar.")
+                        + "so it opens at login and waits in the menu bar. With the calendar "
+                        + "on, meetings take the event's title and list who was invited.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -96,6 +100,30 @@ private struct GeneralSettings: View {
         // Every tab is laid out, not just the visible one, so an unconstrained
         // width lets the hidden tabs' text paint fragments over the window.
         .frame(width: 520)
+    }
+
+    /// Turning it on asks macOS for calendar access first, and only sticks if
+    /// that was granted — a switch that says "on" while nothing can be read
+    /// would be the silent failure this app tries hardest to avoid.
+    private var calendarBinding: Binding<Bool> {
+        Binding(
+            get: { settings.useCalendar && CalendarEvents.hasAccess },
+            set: { wanted in
+                guard wanted else {
+                    settings.useCalendar = false
+                    return
+                }
+                Task {
+                    let granted = await CalendarEvents.requestAccess()
+                    settings.useCalendar = granted
+                    if !granted,
+                        let url = URL(
+                            string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")
+                    {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+            })
     }
 
     private func chooseFolder() {
@@ -159,13 +187,14 @@ private struct PermissionsSettings: View {
 
 private struct NotesSettings: View {
     @Environment(AppSettings.self) private var settings
+    @Environment(MeetingLibrary.self) private var library
 
     var body: some View {
         @Bindable var settings = settings
 
         Form {
             Picker("Default template", selection: $settings.defaultTemplateID) {
-                ForEach(NoteTemplate.builtIns) { Text($0.name).tag($0.id) }
+                ForEach(library.templates) { Text($0.name).tag($0.id) }
             }
 
             Toggle("Show the live transcript while recording", isOn: $settings.showTranscriptWhileRecording)

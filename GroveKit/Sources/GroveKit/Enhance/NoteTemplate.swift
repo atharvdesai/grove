@@ -52,4 +52,11 @@ public struct NoteTemplate: Sendable, Codable, Identifiable, Equatable {
     public static func named(_ id: String) -> NoteTemplate {
         builtIns.first { $0.id == id } ?? .general
     }
+
+    /// Looks among the user's own templates as well as the built-in ones.
+    public static func named(_ id: String, among custom: [NoteTemplate]) -> NoteTemplate {
+        custom.first { $0.id == id } ?? named(id)
+    }
+
+    public var isBuiltIn: Bool { Self.builtIns.contains { $0.id == id } }
 }

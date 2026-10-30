@@ -337,7 +337,7 @@ private struct NewMeetingSheet: View {
                     .onSubmit(start)
 
                 Picker("Template", selection: $templateID) {
-                    ForEach(NoteTemplate.builtIns) { Text($0.name).tag($0.id) }
+                    ForEach(library.templates) { Text($0.name).tag($0.id) }
                 }
 
                 Picker("Folder", selection: $folder) {

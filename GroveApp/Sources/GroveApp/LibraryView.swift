@@ -1,6 +1,7 @@
 import Observation
 import GroveKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// A one-shot request to open a meeting's transcript at a moment, posted by
 /// chat citations and carried down to the detail view. The nonce keeps two
@@ -23,6 +24,8 @@ struct TranscriptSeek: Equatable {
 final class MeetingLibrary {
     private(set) var meetings: [Meeting] = []
     private(set) var folders: [String] = []
+    /// Built-in templates followed by the user's own.
+    private(set) var templates: [NoteTemplate] = NoteTemplate.builtIns
     var loadError: String?
     private let settings: AppSettings
 
@@ -38,6 +41,7 @@ final class MeetingLibrary {
         do {
             meetings = try store.list()
             folders = try store.folders()
+            templates = NoteTemplate.builtIns + store.customTemplates()
             loadError = nil
         } catch {
             loadError = error.localizedDescription
@@ -72,6 +76,40 @@ final class MeetingLibrary {
         perform { try store.delete(meeting) }
     }
 
+    var customTemplates: [NoteTemplate] { templates.filter { !$0.isBuiltIn } }
+
+    func template(id: String) -> NoteTemplate { NoteTemplate.named(id, among: templates) }
+
+    func saveCustomTemplates(_ templates: [NoteTemplate]) {
+        perform { try store.saveCustomTemplates(templates) }
+    }
+
+    func setActionItem(_ item: ActionItem, done: Bool) {
+        guard let meeting = meetings.first(where: { $0.id == item.meetingID }) else { return }
+        perform { try store.save(meeting.settingActionItem(item.text, done: done)) }
+    }
+
+    /// Names the far side of the call in place of "Them". Blank clears it.
+    func setSpeakerName(_ name: String, for meeting: Meeting) {
+        var updated = meeting
+        let trimmed = name.trimmed
+        updated.speakerName = trimmed.isEmpty ? nil : trimmed
+        perform { try store.save(updated) }
+    }
+
+    /// Meetings whose title, notes, transcript or attendees mention every word
+    /// of `query`, in any form.
+    func meetings(matching query: String) -> [Meeting] {
+        guard !query.trimmed.isEmpty else { return meetings }
+        return meetings.filter { meeting in
+            let text = [
+                meeting.title, meeting.roughNotes, meeting.enhancedNotes ?? "",
+                meeting.transcript.formatted(), (meeting.attendees ?? []).joined(separator: " "),
+            ].joined(separator: " ")
+            return SearchTerms.text(text, matchesQuery: query)
+        }
+    }
+
     func createFolder(named name: String) {
         perform { try store.createFolder(named: name) }
     }
@@ -100,8 +138,13 @@ struct LibrarySidebar: View {
     @ViewState private var deleting: Meeting?
     @ViewState private var newFolderName = ""
     @ViewState private var showingNewFolder = false
+    @ViewState private var query = ""
+
+    private var searching: Bool { !query.trimmed.isEmpty }
 
     var body: some View {
+        let visible = library.meetings(matching: query)
+
         List(selection: $selection) {
             if session.isBusy {
                 Section {
@@ -118,16 +161,21 @@ struct LibrarySidebar: View {
             // Loose meetings first, then a section per folder. A tree with
             // disclosure would nest more prettily and makes drag-to-file harder
             // to get right; sections keep everything one click away.
-            let loose = library.meetings(in: nil)
+            let loose = visible.filter { $0.folder == nil }
             if !loose.isEmpty {
                 Section("Meetings") {
                     ForEach(loose) { row(for: $0) }
                 }
             }
 
-            ForEach(library.allFolders, id: \.self) { folder in
+            // While searching, a folder with no matches is just noise.
+            ForEach(
+                library.allFolders.filter { folder in
+                    !searching || visible.contains { $0.folder == folder }
+                }, id: \.self
+            ) { folder in
                 Section {
-                    ForEach(library.meetings(in: folder)) { row(for: $0) }
+                    ForEach(visible.filter { $0.folder == folder }) { row(for: $0) }
                 } header: {
                     HStack {
                         Label(folder, systemImage: "folder")
@@ -142,8 +190,11 @@ struct LibrarySidebar: View {
             }
         }
         .listStyle(.sidebar)
+        .searchable(text: $query, placement: .sidebar, prompt: "Search meetings")
         .overlay {
-            if library.meetings.isEmpty && !session.isBusy {
+            if searching && visible.isEmpty {
+                ContentUnavailableView.search(text: query)
+            } else if library.meetings.isEmpty && !session.isBusy {
                 ContentUnavailableView(
                     "No meetings yet",
                     systemImage: "tray",
@@ -312,6 +363,8 @@ struct MeetingDetailView: View {
     @ViewState private var tab: Tab?
     @ViewState private var pendingSeek: TranscriptSeek?
     @ViewState private var highlightedSegment: TranscriptSegment.ID?
+    @ViewState private var namingSpeaker = false
+    @ViewState private var speakerDraft = ""
 
     enum Tab: String, CaseIterable, Identifiable {
         case notes = "Notes"
@@ -328,6 +381,13 @@ struct MeetingDetailView: View {
                     Text(meeting.startedAt, format: .dateTime.weekday(.wide).day().month().hour().minute())
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    if let attendees = meeting.attendees, !attendees.isEmpty {
+                        Text("With \(attendees.joined(separator: ", "))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .help(attendees.joined(separator: "\n"))
+                    }
                 }
                 Spacer()
                 // Without this, a saved meeting is a dead end: the only way to
@@ -350,6 +410,30 @@ struct MeetingDetailView: View {
 
                 CopyButton(title: copyLabel, text: copyableText)
                     .disabled(copyableText.isEmpty)
+
+                // The share sheet reaches Mail, Messages, Notes and any app that
+                // takes text — sharing is always something the user does, never
+                // something Grove does on its own.
+                ShareLink(
+                    item: MeetingStore.notesMarkdown(for: meeting),
+                    subject: Text(meeting.title)
+                ) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+                .help("Share these notes")
+
+                Menu {
+                    Button("Name the Other Speaker…") {
+                        speakerDraft = meeting.speakerName ?? ""
+                        namingSpeaker = true
+                    }
+                    Button("Export Notes as Markdown…", action: exportNotes)
+                } label: {
+                    Label("More", systemImage: "ellipsis.circle")
+                }
+                .menuStyle(.button)
+                .buttonStyle(.borderless)
+                .fixedSize()
                 Button {
                     NSWorkspace.shared.selectFile(
                         nil, inFileViewerRootedAtPath: folder.path)
@@ -388,6 +472,13 @@ struct MeetingDetailView: View {
                     DispatchQueue.main.async { applyPendingSeek(using: proxy) }
                 }
             }
+        }
+        .alert("Who is “Them” in this meeting?", isPresented: $namingSpeaker) {
+            TextField("Name", text: $speakerDraft)
+            Button("Cancel", role: .cancel) {}
+            Button("Save") { library.setSpeakerName(speakerDraft, for: meeting) }
+        } message: {
+            Text("Shown instead of “Them” in the transcript and in chat sources. Leave it blank to go back to “Them”.")
         }
         // Selecting a different meeting must not carry a tab that meeting lacks.
         .onChange(of: meeting.id) { _, _ in
@@ -462,7 +553,7 @@ struct MeetingDetailView: View {
                 ForEach(meeting.transcript.merged()) { segment in
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 6) {
-                            Text(segment.speaker.displayName)
+                            Text(meeting.displayName(for: segment.speaker))
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(segment.speaker == .me ? Color.accentColor : .secondary)
                             Text(segment.start.clockString)
@@ -488,6 +579,19 @@ struct MeetingDetailView: View {
 
     private var folder: URL { library.store.directory(for: meeting) }
 
+    private func exportNotes() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
+        panel.nameFieldStringValue = "\(meeting.folderName).md"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try MeetingStore.notesMarkdown(for: meeting)
+                .write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            library.loadError = "Could not export the notes: \(error.localizedDescription)"
+        }
+    }
+
     /// Copies whatever the reader is actually looking at. A single "copy" that
     /// always yielded the notes would be wrong half the time.
     private var copyLabel: String {
@@ -510,7 +614,7 @@ struct MeetingDetailView: View {
                     let minutes = Int(segment.start) / 60
                     let seconds = Int(segment.start) % 60
                     return String(
-                        format: "%@ %02d:%02d  %@", segment.speaker.displayName, minutes, seconds,
+                        format: "%@ %02d:%02d  %@", meeting.displayName(for: segment.speaker), minutes, seconds,
                         segment.text)
                 }
                 .joined(separator: "\n")

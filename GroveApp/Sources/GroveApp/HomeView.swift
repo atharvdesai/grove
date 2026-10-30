@@ -22,6 +22,8 @@ struct HomeView: View {
 
     @ViewState private var checks: [SystemCheck] = []
     @ViewState private var showingChat = false
+    @ViewState private var showingActionItems = false
+    @ViewState private var showingDigest = false
 
     var body: some View {
         ScrollView {
@@ -59,13 +61,29 @@ struct HomeView: View {
                         meetings: Array(library.meetings.prefix(4)), selection: $selection)
                         .frame(maxWidth: 560)
 
-                    Button {
-                        showingChat = true
-                    } label: {
-                        Label("Ask your meetings", systemImage: "bubble.left.and.bubble.right")
+                    HStack(spacing: 10) {
+                        Button {
+                            showingChat = true
+                        } label: {
+                            Label("Ask your meetings", systemImage: "bubble.left.and.bubble.right")
+                        }
+                        .help("Ask a question across every saved meeting")
+
+                        Button {
+                            showingActionItems = true
+                        } label: {
+                            Label("Action items", systemImage: "checklist")
+                        }
+                        .help("Every follow-up from every meeting")
+
+                        Button {
+                            showingDigest = true
+                        } label: {
+                            Label("This week", systemImage: "calendar")
+                        }
+                        .help("A digest of the last seven days of meetings")
                     }
                     .buttonStyle(.bordered)
-                    .help("Ask a question across every saved meeting")
                 }
 
                 Spacer(minLength: 20)
@@ -74,6 +92,8 @@ struct HomeView: View {
             .padding(.horizontal, 32)
         }
         .sheet(isPresented: $showingChat) { ChatView() }
+        .sheet(isPresented: $showingActionItems) { ActionItemsView() }
+        .sheet(isPresented: $showingDigest) { DigestView() }
         .task { checks = await Diagnostics.all() }
         // Coming back from System Settings should reflect what changed there.
         .onReceive(

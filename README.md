@@ -47,6 +47,22 @@ Adhikari (MIT) — see [Attribution](#attribution).
 - **Names and files meetings for you** — leave the title blank and the
   on-device model names the meeting when it ends, and files it into one of your
   existing folders when it clearly belongs there. It never invents a folder.
+- **Search that forgives word forms** — chat and the sidebar's search box
+  match "decide" to "decision" and "price" to "pricing", and a meeting's title,
+  attendees and speaker name count too, so "what does Dana want to lead" finds
+  your 1:1 with Dana.
+- **Calendar-aware** — turn it on in Settings and a meeting takes the title of
+  the event you are in, records who was invited, and in a 1:1 labels the other
+  side by name instead of "Them". The detection prompt names the event too.
+- **Action items across meetings** — every line under "Action items" or "Next
+  steps" in your notes, in one list you can tick off, each linked to the moment
+  it was said.
+- **This week** — a digest of the last seven days: decisions, action items, open
+  questions, and what changed since earlier in the week.
+- **Your own templates** — add templates like "Interview" or "Sales discovery"
+  in Settings → Templates. They live in the library folder, so they sync with it.
+- **Share and export** — the share sheet (Mail, Messages, Notes…) or a Markdown
+  file, from any meeting. Name the other speaker from the same menu.
 - **Plain files, no lock-in** — Markdown + JSON in `~/Documents/Grove`.
   Greppable, syncable, Obsidian-friendly.
 - Menu bar recording, pause/resume, folders, templates, meeting resume,
@@ -104,6 +120,8 @@ In the terminal:
 grove record --title "Standup" --notes ~/notes.md
 grove list
 grove ask what budget was agreed
+grove actions          # open action items across every meeting
+grove digest           # the last seven days, summarised on-device
 grove templates
 grove doctor
 grove detect        # which call apps Grove sees using the microphone

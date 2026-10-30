@@ -60,6 +60,8 @@ func printUsage() {
           grove record [--title T] [--template ID] [--notes FILE] [--minutes N] [--locale L]
           grove list [--dir PATH]
           grove ask QUESTION... [--dir PATH]
+          grove actions [--dir PATH]
+          grove digest [--dir PATH]
           grove templates
           grove doctor
           grove detect
@@ -373,7 +375,7 @@ func runAsk(_ arguments: Arguments) async throws {
                 formatter.string(from: excerpt.startedAt),
                 excerpt.meetingTitle as NSString,
                 TimestampLinker.clockString(excerpt.start),
-                excerpt.speaker.displayName))
+                excerpt.speakerName as NSString))
         }
     }
 }
@@ -395,6 +397,45 @@ func runDetect() {
     print(processes.isEmpty
         ? "nothing is using the microphone"
         : "using the microphone    " + processes.joined(separator: ", "))
+}
+
+/// Open action items across every meeting, newest meeting first.
+@available(macOS 26.0, *)
+func runActions(_ arguments: Arguments) throws {
+    let store = MeetingStore(baseDirectory: arguments.directory.map { URL(fileURLWithPath: $0) })
+    let items = ActionItems.extract(from: try store.list()).filter { !$0.isDone }
+    guard !items.isEmpty else {
+        print("No open action items.")
+        return
+    }
+    var lastMeeting: UUID?
+    for item in items {
+        if item.meetingID != lastMeeting {
+            if lastMeeting != nil { print("") }
+            print(item.meetingTitle)
+            lastMeeting = item.meetingID
+        }
+        let time = item.time.map { "  (\(TimestampLinker.clockString($0)))" } ?? ""
+        print("  [ ] \(item.text)\(time)")
+    }
+}
+
+/// The last seven days of meetings, summarised on-device.
+@available(macOS 26.0, *)
+func runDigest(_ arguments: Arguments) async throws {
+    let store = MeetingStore(baseDirectory: arguments.directory.map { URL(fileURLWithPath: $0) })
+    let week = MeetingDigest.meetings(try store.list())
+    guard !week.isEmpty else {
+        print("No meetings in the last 7 days.")
+        return
+    }
+    let digest = MeetingDigest()
+    if case .unavailable(let reason) = digest.availability {
+        print("On-device model unavailable (\(reason)); cannot write a digest.")
+        return
+    }
+    print("Reading \(week.count) meeting(s) from the last 7 days…\n")
+    print(try await digest.write(for: week) ?? "None of them has notes to summarise yet.")
 }
 
 func defaultTitle() -> String {
@@ -445,6 +486,8 @@ do {
     case "doctor": await runDoctor()
     case "debug-audio": await runDebugAudio()
     case "detect": runDetect()
+    case "actions": try runActions(arguments)
+    case "digest": try await runDigest(arguments)
     case "version", "--version", "-v": print("grove \(groveVersion)")
     case "templates":
         for template in NoteTemplate.builtIns {

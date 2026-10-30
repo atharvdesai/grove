@@ -210,6 +210,31 @@ public struct MeetingStore: Sendable {
         return new
     }
 
+    // MARK: - Templates
+
+    /// The user's own note templates, kept with the meetings so they travel
+    /// with the library — sync the folder and the templates come along. The
+    /// dot keeps it out of the folder list.
+    public var templatesURL: URL {
+        baseDirectory.appendingPathComponent(".grove/templates.json")
+    }
+
+    public func customTemplates() -> [NoteTemplate] {
+        guard let data = try? Data(contentsOf: templatesURL) else { return [] }
+        return (try? JSONDecoder().decode([NoteTemplate].self, from: data)) ?? []
+    }
+
+    public func saveCustomTemplates(_ templates: [NoteTemplate]) throws {
+        try FileManager.default.createDirectory(
+            at: templatesURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try encoder.encode(templates).write(to: templatesURL, options: .atomic)
+    }
+
+    /// A template by id, the user's own first.
+    public func template(id: String) -> NoteTemplate {
+        NoteTemplate.named(id, among: customTemplates())
+    }
+
     /// Keeps a user-supplied folder name usable as a single path component.
     static func sanitized(_ name: String) -> String {
         name
@@ -221,7 +246,8 @@ public struct MeetingStore: Sendable {
 
     // MARK: - Rendering
 
-    static func notesMarkdown(for meeting: Meeting) -> String {
+    /// The notes exactly as notes.md holds them, for sharing and export.
+    public static func notesMarkdown(for meeting: Meeting) -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .full
         formatter.timeStyle = .short
@@ -232,6 +258,11 @@ public struct MeetingStore: Sendable {
             "date: \(ISO8601DateFormatter().string(from: meeting.startedAt))",
             "duration_minutes: \(Int(meeting.duration / 60))",
             "template: \(meeting.templateID)",
+        ]
+        if let attendees = meeting.attendees, !attendees.isEmpty {
+            lines.append("attendees: [\(attendees.joined(separator: ", "))]")
+        }
+        lines += [
             "---",
             "",
             "# \(meeting.title)",
@@ -262,7 +293,7 @@ public struct MeetingStore: Sendable {
             let seconds = Int(segment.start) % 60
             lines.append(
                 String(
-                    format: "**%@** `%02d:%02d`  \n%@\n", segment.speaker.displayName, minutes,
+                    format: "**%@** `%02d:%02d`  \n%@\n", meeting.displayName(for: segment.speaker), minutes,
                     seconds, segment.text))
         }
         return lines.joined(separator: "\n")

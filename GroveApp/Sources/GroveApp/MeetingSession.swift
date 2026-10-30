@@ -38,6 +38,8 @@ final class MeetingSession {
     /// The call app that prompted this recording, when detection started it.
     /// Feeds the fallback title and gives the namer a hint.
     private(set) var meetingApp: String?
+    /// The calendar event this recording matched, when calendar use is on.
+    private(set) var calendarEvent: CalendarEvent?
 
     /// Echo-deduplicated, so the panel shows what will actually be saved rather
     /// than the microphone's copy of the far end.
@@ -107,6 +109,12 @@ final class MeetingSession {
     func start(detectedApp: String? = nil) async {
         guard phase == .idle else { return }
         meetingApp = detectedApp
+        // A resumed meeting keeps the attendees it already has.
+        calendarEvent = resuming == nil && settings.useCalendar ? CalendarEvents.current() : nil
+        if let calendarEvent, title.trimmed.isEmpty, !calendarEvent.title.isEmpty {
+            // Shown in the title field, so it can be corrected mid-meeting.
+            title = calendarEvent.title
+        }
         phase = .starting
         errorMessage = nil
         lastSaved = nil
@@ -209,7 +217,13 @@ final class MeetingSession {
             transcript: transcript,
             templateID: templateID,
             folder: folder,
-            recordedDuration: (resuming?.recordedDuration ?? 0) + recordedDuration)
+            recordedDuration: (resuming?.recordedDuration ?? 0) + recordedDuration,
+            attendees: resuming?.attendees ?? eventAttendees,
+            // In a 1:1 the far side is one known person, so name them.
+            speakerName: resuming?.speakerName ?? eventAttendees.flatMap {
+                $0.count == 1 ? $0.first : nil
+            },
+            completedActionItems: resuming?.completedActionItems)
 
         // Never skip this silently. A meeting that comes back as "transcript
         // only" with no explanation looks like the app quietly did half its job,
@@ -231,7 +245,7 @@ final class MeetingSession {
                 let enhanced = try await NoteEnhancer().enhance(
                     roughNotes: roughNotes,
                     transcript: transcript,
-                    template: .named(templateID),
+                    template: store.template(id: templateID),
                     // A placeholder like "Meeting Thursday 14:00" tells the
                     // model nothing and invites it to echo the date back.
                     meetingTitle: titleIsAutomatic ? nil : meeting.title)
@@ -267,6 +281,7 @@ final class MeetingSession {
         folder = nil
         folderIsAutomatic = true
         meetingApp = nil
+        calendarEvent = nil
         resuming = nil
         templateID = settings.defaultTemplateID
         return meeting
@@ -297,6 +312,11 @@ final class MeetingSession {
 
         if nameIt { meeting.title = suggestion.title }
         if fileIt, let folder = suggestion.folder { meeting.folder = folder }
+    }
+
+    private var eventAttendees: [String]? {
+        guard let attendees = calendarEvent?.attendees, !attendees.isEmpty else { return nil }
+        return attendees
     }
 
     func dismissError() { errorMessage = nil }

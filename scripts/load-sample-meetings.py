@@ -10,6 +10,10 @@ something realistic to work on without recording anything.
     ./scripts/load-sample-meetings.py --remove     # take them out again
     ./scripts/load-sample-meetings.py --dir PATH   # a library somewhere else
 
+The meetings are moved forward in time so the latest one was yesterday, which
+keeps "This week" and recent-first ordering meaningful whenever you load them.
+Pass --keep-dates to load them in October 2026 as written.
+
 Writes the same three files the app does for each meeting. Removal deletes only
 meetings whose id is in samples/sample-meetings.json, never anything else; the
 folders it created (Acme, Hiring, Product) are left for you to delete.
@@ -20,7 +24,7 @@ import re
 import shutil
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 SAMPLES = Path(__file__).resolve().parent.parent / "samples" / "sample-meetings.json"
@@ -43,6 +47,23 @@ def library_dir(override):
 
 def parse_date(text):
     return datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+
+
+def format_date(date):
+    return date.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def shifted_to_recent(meetings):
+    """Moves every meeting by the same whole number of days so the latest one
+    lands yesterday, keeping their order, gaps and times of day."""
+    latest = max(parse_date(m["startedAt"]) for m in meetings)
+    yesterday = datetime.now(timezone.utc) - timedelta(days=1)
+    offset = timedelta(days=(yesterday.date() - latest.date()).days)
+    for meeting in meetings:
+        for key in ("startedAt", "endedAt"):
+            if key in meeting:
+                meeting[key] = format_date(parse_date(meeting[key]) + offset)
+    return meetings
 
 
 def sanitized(name):
@@ -71,6 +92,10 @@ def notes_markdown(meeting):
         f"date: {meeting['startedAt']}",
         f"duration_minutes: {int(meeting['recordedDuration'] // 60)}",
         f"template: {meeting['templateID']}",
+    ]
+    if meeting.get("attendees"):
+        lines.append(f"attendees: [{', '.join(meeting['attendees'])}]")
+    lines += [
         "---",
         "",
         f"# {meeting['title']}",
@@ -92,7 +117,7 @@ def notes_markdown(meeting):
 def transcript_markdown(meeting):
     lines = [f"# Transcript — {meeting['title']}", ""]
     for segment in meeting["transcript"]["segments"]:
-        speaker = "Me" if segment["speaker"] == "me" else "Them"
+        speaker = "Me" if segment["speaker"] == "me" else meeting.get("speakerName") or "Them"
         lines.append(f"**{speaker}** `{clock(segment['start'])}`  \n{segment['text']}\n")
     return "\n".join(lines)
 
@@ -117,10 +142,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--remove", action="store_true", help="remove the sample meetings")
     parser.add_argument("--dir", help="library folder (default: the app's)")
+    parser.add_argument("--keep-dates", action="store_true", help="keep the October 2026 dates")
     args = parser.parse_args()
 
     base = library_dir(args.dir)
     meetings = json.loads(SAMPLES.read_text())["meetings"]
+    if not args.keep_dates:
+        meetings = shifted_to_recent(meetings)
     present = existing_meetings(base)
 
     if args.remove:

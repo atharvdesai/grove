@@ -238,6 +238,10 @@
       "recordedDuration": 104.1,
       "endedAt": "2026-10-08T17:31:44Z",
       "folder": "Acme",
+      "attendees": [
+        "Janet Liu",
+        "Raj Mehta"
+      ],
       "enhancedNotes": "## Account\n- Acme starts with the sales team, about 120 seats (0:10)\n- First-year budget is $40,000 (1:09)\n\n## Requirements\n- Okta SSO is non-negotiable, needed by December 1 (0:23)\n- Legal wants customer data kept in the EU (0:38)\n- Meeting content stays on each Mac; account data is in the US today (0:46)\n\n## Contacts\n- Raj Mehta in IT owns the Okta side (1:21)\n\n## Next steps\n- Send data handling document by next Wednesday (1:04)\n- Send formal quote for 120 seats on annual billing (1:15)\n- SSO check-in on October 20 (1:34)"
     },
     {
@@ -616,6 +620,10 @@
       "templateID": "one-on-one",
       "recordedDuration": 83.5,
       "endedAt": "2026-10-16T18:01:23Z",
+      "attendees": [
+        "Dana Reyes"
+      ],
+      "speakerName": "Dana",
       "enhancedNotes": "## Career\n- Dana wants to lead the mobile app next year; built the iOS prototype (0:19)\n- Build a promotion case to senior engineer for Q1 (0:29)\n\n## On-call\n- Dana was on call three of the last four weeks (0:38)\n- Weekly rotation across the whole team from next Monday (0:46)\n\n## Approved\n- Swift conference in March, up to $2,000 including travel (1:00)\n\n## Action items\n- Draft the promotion case outline by end of month (1:10)"
     },
     {
@@ -715,6 +723,10 @@
       "recordedDuration": 89.4,
       "endedAt": "2026-10-20T17:31:29Z",
       "folder": "Acme",
+      "attendees": [
+        "Janet Liu",
+        "Raj Mehta"
+      ],
       "enhancedNotes": "## SSO\n- Okta integration working in staging; tested with 10 users, group sync works (0:12)\n- Remaining: SCIM deprovisioning, done by November 10 (0:30)\n\n## Data residency\n- Legal accepts meeting content staying on the Mac (0:34)\n- Frankfurt region for account data by January, in the contract (0:49)\n\n## Commercial\n- 10% off the first year if signed by November 30 (1:04)\n\n## Next steps\n- Send updated quote with the discount and Frankfurt commitment (1:18)"
     },
     {
@@ -904,6 +916,10 @@
       "recordedDuration": 70.4,
       "endedAt": "2026-10-23T19:01:10Z",
       "folder": "Hiring",
+      "attendees": [
+        "Marcus Chen",
+        "Leo Park"
+      ],
       "enhancedNotes": "## Final round\n- System design much stronger: offline clients from the start, clear conflict resolution (0:09)\n- First-round concern resolved; strong hire (0:24)\n- Sam has a competing offer from a fintech company (0:28)\n\n## Offer\n- $175,000 base plus standard equity (0:46)\n- Start date December 2 (0:55)\n\n## Action items\n- Send the offer today (0:46)\n- Leo: onboarding checklist and laptop order (1:00)"
     }
   ]

@@ -40,6 +40,7 @@ struct RecordingView: View {
 private struct RecordingHeader: View {
     @Environment(MeetingSession.self) private var session
     @Environment(AppSettings.self) private var settings
+    @Environment(MeetingLibrary.self) private var library
 
     var body: some View {
         @Bindable var session = session
@@ -63,7 +64,7 @@ private struct RecordingHeader: View {
 
             if session.isRecording {
                 Picker("Template", selection: $session.templateID) {
-                    ForEach(NoteTemplate.builtIns) { template in
+                    ForEach(library.templates) { template in
                         Text(template.name).tag(template.id)
                     }
                 }

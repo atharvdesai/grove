@@ -58,6 +58,7 @@ final class AppSettings {
         static let meetingDetection = "meetingDetection"
         static let autoOrganize = "autoOrganizeMeetings"
         static let setUpOpenAtLogin = "hasSetUpOpenAtLogin"
+        static let useCalendar = "useCalendar"
     }
 
     private let defaults: UserDefaults
@@ -105,6 +106,12 @@ final class AppSettings {
         didSet { defaults.set(autoOrganize, forKey: Key.autoOrganize) }
     }
 
+    /// Name meetings after the calendar event they happen in. Off until the
+    /// user turns it on, because it needs a permission prompt of its own.
+    var useCalendar: Bool {
+        didSet { defaults.set(useCalendar, forKey: Key.useCalendar) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.appearance =
@@ -121,6 +128,7 @@ final class AppSettings {
             MeetingDetection(rawValue: defaults.string(forKey: Key.meetingDetection) ?? "")
             ?? .ask
         self.autoOrganize = defaults.object(forKey: Key.autoOrganize) as? Bool ?? true
+        self.useCalendar = defaults.bool(forKey: Key.useCalendar)
         if hasCompletedOnboarding { setUpOpenAtLoginOnce() }
     }
 

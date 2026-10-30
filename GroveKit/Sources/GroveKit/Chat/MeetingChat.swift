@@ -27,6 +27,9 @@ public struct MeetingChat: Sendable {
         public let start: TimeInterval
         public let end: TimeInterval
         public let text: String
+        /// The speaker as that meeting names them — "Them", or the other
+        /// person's name when the meeting knows it.
+        public let speakerName: String
 
         public init(
             id: UUID,
@@ -36,7 +39,8 @@ public struct MeetingChat: Sendable {
             speaker: Speaker,
             start: TimeInterval,
             end: TimeInterval,
-            text: String
+            text: String,
+            speakerName: String? = nil
         ) {
             self.id = id
             self.meetingID = meetingID
@@ -46,6 +50,7 @@ public struct MeetingChat: Sendable {
             self.start = start
             self.end = end
             self.text = text
+            self.speakerName = speakerName ?? speaker.displayName
         }
     }
 
@@ -104,6 +109,12 @@ public struct MeetingChat: Sendable {
     ///
     /// Adjacent segments from the same speaker are merged first, so an answer
     /// split across two utterances still scores as one passage.
+    ///
+    /// Words match in any form ("decide" finds "decision"; see `SearchTerms`).
+    /// A question word found only in the meeting's title, attendees or speaker
+    /// name counts half: "what does Dana want to lead" should find the 1:1
+    /// titled with her name even though nobody says "Dana" in it, but a
+    /// passage still has to share at least one word of its own to count.
     public static func retrieve(
         question: String,
         meetings: [Meeting],
@@ -114,12 +125,20 @@ public struct MeetingChat: Sendable {
 
         var scored: [(Double, Excerpt)] = []
         for meeting in meetings {
+            let context = Set(
+                Transcript.normalize(
+                    ([meeting.title, meeting.speakerName ?? ""] + (meeting.attendees ?? []))
+                        .joined(separator: " ")))
             for segment in meeting.transcript.merged() {
                 let words = Set(Transcript.normalize(segment.text))
                 guard !words.isEmpty else { continue }
-                let shared = content.intersection(words).count
-                guard shared > 0 else { continue }
-                let score = Double(shared) / Double(content.count)
+                let inPassage = content.filter { term in
+                    words.contains(term) || words.contains { SearchTerms.matches(term, $0) }
+                }
+                guard !inPassage.isEmpty else { continue }
+                let inContext = SearchTerms.matchCount(content.subtracting(inPassage), in: context)
+                let score =
+                    (Double(inPassage.count) + 0.5 * Double(inContext)) / Double(content.count)
                 scored.append(
                     (score,
                      Excerpt(
@@ -130,7 +149,8 @@ public struct MeetingChat: Sendable {
                         speaker: segment.speaker,
                         start: segment.start,
                         end: segment.end,
-                        text: segment.text)))
+                        text: segment.text,
+                        speakerName: meeting.displayName(for: segment.speaker))))
             }
         }
         return
@@ -228,7 +248,7 @@ public struct MeetingChat: Sendable {
             let line =
                 "[\(rank + 1)] Meeting: \(excerpt.meetingTitle) (\(dateFormatter.string(from: excerpt.startedAt)))\n"
                 + "[\(TimestampLinker.clockString(excerpt.start))] "
-                + "[\(excerpt.speaker.displayName)] \(excerpt.text)"
+                + "[\(excerpt.speakerName)] \(excerpt.text)"
             let words = line.split(separator: " ").count
             if used + words > wordBudget && !blocks.isEmpty { break }
             used += words
