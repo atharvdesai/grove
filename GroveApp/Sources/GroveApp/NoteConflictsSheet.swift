@@ -11,7 +11,7 @@ struct NoteConflictsSheet: View {
     let showInTranscript: (TimeInterval) -> Void
 
     @Environment(MeetingLibrary.self) private var library
-    @Environment(\.dismiss) private var dismiss
+    @CloseSheet private var close
 
     /// Read live from the library, so a card disappears as soon as it's answered.
     private var conflicts: [NoteConflict] {
@@ -32,7 +32,7 @@ struct NoteConflictsSheet: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
+                Button("Done") { close() }.keyboardShortcut(.cancelAction)
             }
             .padding(16)
 
@@ -52,8 +52,7 @@ struct NoteConflictsSheet: View {
                             } keep: {
                                 library.resolve(conflict, in: current, useSuggestion: false)
                             } show: {
-                                showInTranscript(conflict.time)
-                                dismiss()
+                                close { showInTranscript(conflict.time) }
                             }
                         }
                     }

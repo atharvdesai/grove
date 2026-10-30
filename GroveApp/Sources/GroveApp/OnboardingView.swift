@@ -2,468 +2,551 @@ import AppKit
 import GroveKit
 import SwiftUI
 
-/// First run, in five short steps: hello, account, permissions, folders, and
-/// how Grove behaves in a meeting.
+/// First run: one question per screen, then everything set up.
 ///
-/// The permissions step stays because the permissions are unusual and failure
-/// is silent: Grove needs *system audio*, which almost nothing else asks for,
-/// and a user who dismisses that prompt mid-meeting gets a transcript with only
-/// their own voice in it and no explanation.
+/// Modelled on onboarding that people actually finish (Opal's is the
+/// reference): a thin progress bar instead of a step count, one large question
+/// at a time, answers that visibly shape the app — your folders, your name,
+/// who writes your notes — and a closing screen that shows what was set up, so
+/// the first view of the app feels prepared rather than empty.
+///
+/// The permissions screen primes before it asks. Grove needs *system audio*,
+/// which almost nothing else asks for; a user who dismisses that prompt
+/// mid-meeting gets a transcript with only their own voice in it and no
+/// explanation. Saying what the dialog will be, and why, before macOS shows it
+/// is the difference between Allow and Don't Allow.
 struct OnboardingView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(MeetingLibrary.self) private var library
     @Environment(GoogleConnection.self) private var google
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @ViewState private var step = Step.welcome
+    @ViewState private var movingForward = true
     @ViewState private var checks: [SystemCheck] = []
-    @ViewState private var chosenFolders: Set<String> = ["Work", "Personal"]
-    @ViewState private var customFolder = ""
-    @ViewState private var extraFolders: [String] = []
+    @ViewState private var uses: Set<UseCase> = [.work]
 
     enum Step: Int, CaseIterable {
-        case welcome, account, permissions, folders, howItWorks
+        case welcome, uses, name, permissions, writer, calls, ready
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            content
-                // Each step needs its own identity. Without it the branches of
-                // the switch share one, so SwiftUI cross-fades in place and the
-                // previous step stays painted underneath at partial opacity.
-                .id(step)
-                .transition(.asymmetric(
-                    insertion: .move(edge: .trailing).combined(with: .opacity),
-                    removal: .opacity))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.horizontal, 56)
+            topBar
+                .padding(.top, 14)
+                .padding(.horizontal, 22)
 
-            HStack {
-                if step != .welcome {
-                    Button("Back") { go(-1) }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                PageDots(count: Step.allCases.count, current: step.rawValue)
-                Spacer()
-                primaryButton
+            ZStack {
+                content
+                    // Each step needs its own identity. Without it the branches
+                    // of the switch share one, so SwiftUI cross-fades in place
+                    // and the previous step stays painted underneath.
+                    .id(step)
+                    .transition(stepTransition)
+                    .frame(maxWidth: 560)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.horizontal, 48)
             }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 18)
-            .background(.bar)
+
+            primaryButton
+                .padding(.bottom, 34)
         }
-        .frame(minWidth: 680, minHeight: 580)
-        .background(OnboardingBackground())
+        .frame(minWidth: 760, minHeight: 640)
+        .background(OnboardingBackground(step: step.rawValue))
+        .ignoresSafeArea()
         .task { await refresh() }
+        .onReceive(
+            NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
+        ) { _ in
+            Task { await refresh() }
+        }
+    }
+
+    private var stepTransition: AnyTransition {
+        if reduceMotion { return .opacity }
+        return .asymmetric(
+            insertion: .opacity.combined(with: .offset(x: movingForward ? 40 : -40)),
+            removal: .opacity.combined(with: .offset(x: movingForward ? -40 : 40)))
+    }
+
+    // MARK: - Chrome
+
+    private var topBar: some View {
+        HStack {
+            // Clear of the traffic lights.
+            Color.clear.frame(width: 60, height: 1)
+            Button {
+                go(-1)
+            } label: {
+                Image(systemName: "chevron.left")
+            }
+            .buttonStyle(CircleIconStyle(size: 28))
+            .foregroundStyle(.secondary)
+            .opacity(step == .welcome || step == .ready ? 0 : 1)
+            .disabled(step == .welcome || step == .ready)
+            .help("Back")
+
+            Spacer()
+            ProgressBar(progress: Double(step.rawValue) / Double(Step.allCases.count - 1))
+                .frame(width: 240)
+                .opacity(step == .welcome ? 0 : 1)
+            Spacer()
+
+            Color.clear.frame(width: 88, height: 1)
+        }
+        .frame(height: 30)
+    }
+
+    @ViewBuilder
+    private var primaryButton: some View {
+        Button(action: advance) {
+            Text(primaryLabel)
+                .font(.system(size: 15, weight: .semibold))
+                .frame(width: 260)
+                .padding(.vertical, 4)
+        }
+        .buttonStyle(ProminentCapsuleStyle())
+        .keyboardShortcut(.defaultAction)
+    }
+
+    private var primaryLabel: String {
+        switch step {
+        case .welcome: return "Get Started"
+        case .uses: return uses.isEmpty ? "Skip" : "Continue"
+        case .name: return settings.userName.trimmed.isEmpty ? "Skip" : "Continue"
+        case .permissions: return checks.contains(where: { !$0.isReady }) ? "I'll Do This Later" : "Continue"
+        case .ready: return "Open Grove"
+        default: return "Continue"
+        }
     }
 
     @ViewBuilder
     private var content: some View {
         switch step {
         case .welcome: welcome
-        case .account: account
-        case .permissions: permissions
-        case .folders: folders
-        case .howItWorks: howItWorks
+        case .uses: usesStep
+        case .name: nameStep
+        case .permissions: permissionsStep
+        case .writer: writerStep
+        case .calls: callsStep
+        case .ready: readyStep
         }
     }
 
     // MARK: - Steps
 
     private var welcome: some View {
-        VStack(spacing: 24) {
-            Spacer()
-            GroveLogo(size: 112, animated: true)
-            VStack(spacing: 10) {
-                Text("Welcome to Grove")
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
+        VStack(spacing: 28) {
+            GroveLogo(size: 104, animated: true)
+            VStack(spacing: 12) {
+                Text("Meetings, remembered.")
+                    .font(.display(44))
                 Text(
-                    "It listens to your meetings without joining them, and turns what was "
-                        + "said — plus anything you jot down — into notes you'll actually use."
-                )
-                .font(.title3)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 480)
-            }
-            HStack(spacing: 14) {
-                Promise(icon: "person.2.slash", title: "No bot", detail: "Nothing joins your call")
-                Promise(icon: "cpu", title: "AI on your Mac", detail: "Transcripts never upload")
-                Promise(icon: "doc.plaintext", title: "Your files", detail: "Plain Markdown, yours to keep")
-            }
-            .padding(.top, 8)
-            Spacer()
-        }
-    }
-
-    private var account: some View {
-        VStack(spacing: 22) {
-            Spacer()
-            StepHeader(
-                title: google.isSignedIn ? "You're signed in" : "Connect your Google account",
-                detail: "Grove uses your calendar to name meetings and show what's next, and "
-                    + "Gmail to send you the notes when a meeting ends. It can't read your inbox.")
-
-            if let account = google.account {
-                HStack(spacing: 12) {
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.title)
-                        .foregroundStyle(.green)
-                    VStack(alignment: .leading) {
-                        Text(account.name ?? account.email).font(.headline)
-                        Text(account.email).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button("Sign Out") { google.signOut() }
-                }
-                .padding(16)
-                .frame(maxWidth: 420)
-                .background(.background.opacity(0.6), in: RoundedRectangle(cornerRadius: 14))
-            } else if google.isConfigured {
-                Button {
-                    Task {
-                        await google.signIn()
-                        if let name = google.account?.firstName { settings.userName = name }
-                    }
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "g.circle.fill").font(.title2)
-                        Text(google.isSigningIn ? "Waiting for Google…" : "Sign in with Google")
-                            .font(.headline)
-                    }
-                    .frame(width: 280, height: 40)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(google.isSigningIn)
-            } else {
-                Text(
-                    "Google sign-in isn't set up in this build. Add a client ID (see the README) "
-                        + "and rebuild — or carry on without it.")
-                    .font(.callout)
+                    "Grove listens without joining the call, and turns what was said — "
+                        + "plus whatever you jot down — into notes worth keeping.")
+                    .font(.title3)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: 420)
+                    .frame(maxWidth: 480)
             }
-
-            if let error = google.lastError {
-                Text(error).font(.caption).foregroundStyle(.red)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 420)
+            HStack(spacing: 10) {
+                PromiseChip(icon: "person.2.slash", text: "No bot in the call")
+                PromiseChip(icon: "lock", text: "Private by default")
+                PromiseChip(icon: "doc.plaintext", text: "Plain files you own")
             }
-
-            if !google.isSignedIn {
-                VStack(spacing: 6) {
-                    Text("Or just tell Grove your name")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    TextField("First name", text: nameBinding)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 220)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.top, 8)
-            }
-            Spacer()
         }
     }
 
-    private var permissions: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Spacer()
-            StepHeader(
-                title: "Let Grove hear the meeting",
-                detail: "Your microphone is you; your Mac's audio is everyone else. Keeping "
-                    + "them separate is how Grove knows who said what.",
-                alignment: .leading)
-            PermissionsList(checks: checks) { await refresh() }
-            if checks.contains(where: { !$0.isReady }) {
-                Text(
-                    "macOS asks once for each. You can continue and grant them later — "
-                        + "Grove will keep telling you what's missing.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer()
-        }
-        .frame(maxWidth: 540)
-    }
-
-    private var folders: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            StepHeader(
-                title: "Where do your meetings belong?",
-                detail: "Pick the folders you want. Grove files each meeting into the right "
-                    + "one when it ends — you can always move it.")
-
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
-                ForEach(FolderPreset.all + extraFolders.map(FolderPreset.custom)) { preset in
-                    FolderChip(preset: preset, selected: chosenFolders.contains(preset.name)) {
-                        if chosenFolders.contains(preset.name) {
-                            chosenFolders.remove(preset.name)
-                        } else {
-                            chosenFolders.insert(preset.name)
+    private var usesStep: some View {
+        VStack(spacing: 26) {
+            Question(
+                title: "What will you use Grove for?",
+                detail: "Pick all that apply. Grove makes a folder for each and files meetings into them.")
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                ForEach(UseCase.allCases) { use in
+                    ChoiceCard(
+                        icon: use.icon, title: use.title, detail: use.detail,
+                        selected: uses.contains(use)
+                    ) {
+                        withAnimation(Motion.snappy) {
+                            if uses.contains(use) { uses.remove(use) } else { uses.insert(use) }
                         }
                     }
                 }
             }
-            .frame(maxWidth: 520)
-
-            HStack {
-                TextField("Add your own…", text: $customFolder)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit(addCustomFolder)
-                Button("Add", action: addCustomFolder)
-                    .disabled(customFolder.trimmed.isEmpty)
-            }
-            .frame(maxWidth: 320)
-            Spacer()
         }
     }
 
-    private var howItWorks: some View {
+    private var nameStep: some View {
+        VStack(spacing: 26) {
+            Question(
+                title: "What should Grove call you?",
+                detail: "So your notes know which promises are yours.")
+
+            TextField("Your first name", text: nameBinding)
+                .textFieldStyle(.plain)
+                .font(.display(30))
+                .multilineTextAlignment(.center)
+                .padding(.vertical, 12)
+                .frame(maxWidth: 360)
+                .overlay(alignment: .bottom) {
+                    Rectangle().fill(Color.grove.opacity(0.5)).frame(height: 1.5)
+                }
+                .onSubmit(advance)
+
+            VStack(spacing: 10) {
+                if let account = google.account {
+                    HStack(spacing: 10) {
+                        Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.grove)
+                        Text("Connected as \(account.email)")
+                        Button("Sign Out") { google.signOut() }
+                            .buttonStyle(.borderless)
+                    }
+                    .font(.callout)
+                } else if google.isConfigured {
+                    Button {
+                        Task {
+                            await google.signIn()
+                            if settings.userName.trimmed.isEmpty, let name = google.account?.firstName {
+                                settings.userName = name
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "calendar.badge.checkmark")
+                            Text(google.isSigningIn ? "Waiting for Google…" : "Connect Google Calendar & Gmail")
+                        }
+                        .font(.callout.weight(.medium))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                    }
+                    .buttonStyle(CardButtonStyle(cornerRadius: 999))
+                    .disabled(google.isSigningIn)
+                    Text("Optional. Names meetings from your calendar, shows what's next, and emails you the notes. It can't read your inbox.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 380)
+                }
+                if let error = google.lastError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 380)
+                }
+            }
+            .padding(.top, 8)
+        }
+    }
+
+    private var permissionsStep: some View {
+        VStack(spacing: 24) {
+            Question(
+                title: "Let Grove hear the meeting",
+                detail: "Two permissions, asked once. Your microphone is you; your Mac's audio "
+                    + "is everyone else — keeping them apart is how Grove knows who said what.")
+
+            HStack(spacing: 12) {
+                SourceCard(icon: "mic.fill", title: "You", detail: "Microphone")
+                Image(systemName: "plus")
+                    .foregroundStyle(.tertiary)
+                SourceCard(icon: "speaker.wave.2.fill", title: "Everyone else", detail: "Mac audio")
+            }
+
+            PermissionsList(checks: checks) { await refresh() }
+
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "hand.point.up.left.fill")
+                    .foregroundStyle(Color.grove)
+                Text("macOS will show its own dialog for each — choose **Allow**. Mac audio is listed under Screen & System Audio Recording; Grove never records your screen.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: 480, alignment: .leading)
+        }
+    }
+
+    private var writerStep: some View {
+        VStack(spacing: 24) {
+            Question(
+                title: "Who should write your notes?",
+                detail: "You can change this any time from the bottom of the sidebar.")
+            ClaudeConnectionCard()
+        }
+    }
+
+    private var callsStep: some View {
         @Bindable var settings = settings
 
-        return VStack(alignment: .leading, spacing: 18) {
-            Spacer()
-            StepHeader(
-                title: "How Grove works in a meeting",
-                detail: "Set it up once and forget it's there.",
-                alignment: .leading)
+        return VStack(spacing: 24) {
+            Question(
+                title: "When a call starts…",
+                detail: "Grove notices Zoom, Meet, Teams and FaceTime. What should it do?")
 
-            Feature(
-                icon: "waveform.badge.mic",
-                title: "It notices your calls",
-                detail: "When Zoom, Meet, Teams or FaceTime starts, Grove offers to take notes.") {
-                Picker("", selection: $settings.meetingDetection) {
-                    ForEach(AppSettings.MeetingDetection.allCases) { Text($0.label).tag($0) }
+            VStack(spacing: 10) {
+                ForEach(AppSettings.MeetingDetection.allCases) { option in
+                    ChoiceCard(
+                        icon: icon(for: option), title: option.label, detail: detail(for: option),
+                        selected: settings.meetingDetection == option
+                    ) {
+                        withAnimation(Motion.snappy) { settings.meetingDetection = option }
+                    }
                 }
-                .labelsHidden()
-                .frame(width: 170)
             }
 
-            Feature(
-                icon: "square.and.pencil",
-                title: "Quick notes, only when you want them",
-                detail: "Press \(QuickNotesShortcut.label) from any app for a small notepad. "
-                    + "Write what you want to remember; Grove hears the rest.") {
-                Text(QuickNotesShortcut.label)
-                    .font(.title3.monospaced().weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
+            HStack(spacing: 14) {
+                Toggle(isOn: $settings.autoOrganize) {
+                    Text("Name and file untitled meetings for me")
+                }
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                Spacer()
+                HStack(spacing: 6) {
+                    Text(QuickNotesShortcut.label)
+                        .font(.callout.monospaced().weight(.semibold))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(Color.groveWash, in: RoundedRectangle(cornerRadius: 5))
+                    Text("quick notes, anywhere")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
             }
-
-            Feature(
-                icon: "envelope",
-                title: "Notes in your inbox",
-                detail: google.isSignedIn
-                    ? "When a meeting ends, the notes are emailed to \(google.account?.email ?? "you")."
-                    : "Sign in with Google to get your notes by email.") {
-                Toggle("", isOn: $settings.emailSummaries)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .disabled(!google.isSignedIn)
-            }
-
-            Feature(
-                icon: "brain",
-                title: "Sharper notes with Claude",
-                detail: settings.claudeExecutable == nil
-                    ? "Install Claude Code to have Claude Haiku 5.5 write your notes on your own plan."
-                    : "Use Claude Haiku 5.5 through Claude Code on this Mac, on your own plan. "
-                        + "Off means everything stays on this Mac.") {
-                Toggle("", isOn: Binding(
-                    get: { settings.aiEngine == .claude },
-                    set: { settings.aiEngine = $0 ? .claude : .onDevice }))
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .disabled(settings.claudeExecutable == nil)
-            }
-
-            Feature(
-                icon: "sparkles",
-                title: "Named and filed for you",
-                detail: "Untitled meetings get a real name and land in the right folder.") {
-                Toggle("", isOn: $settings.autoOrganize)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-            }
-            Spacer()
-        }
-        .frame(maxWidth: 560)
-    }
-
-    // MARK: - Chrome
-
-    @ViewBuilder
-    private var primaryButton: some View {
-        if step == .howItWorks {
-            Button("Start Using Grove", action: finish)
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-        } else {
-            Button(continueLabel) { go(1) }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
+            .padding(.horizontal, 4)
         }
     }
 
-    private var continueLabel: String {
-        switch step {
-        case .welcome: return "Get Started"
-        case .account where !google.isSignedIn: return "Skip for Now"
-        default: return "Continue"
+    private var readyStep: some View {
+        VStack(spacing: 26) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 56))
+                .foregroundStyle(Color.grove)
+                .symbolEffect(.bounce, value: step)
+            Question(
+                title: settings.userName.trimmed.isEmpty ? "You're all set" : "You're all set, \(settings.userName.trimmed)",
+                detail: "Here's how Grove is set up. All of it lives in Settings.")
+            VStack(alignment: .leading, spacing: 12) {
+                SummaryRow(
+                    done: true,
+                    text: chosenFolders.isEmpty
+                        ? "Meetings saved to your Documents folder"
+                        : "Folders for \(chosenFolders.joined(separator: ", "))")
+                SummaryRow(
+                    done: !checks.contains(where: { !$0.isReady }),
+                    text: checks.contains(where: { !$0.isReady })
+                        ? "Permissions still needed — Home will remind you"
+                        : "Microphone and Mac audio allowed")
+                SummaryRow(
+                    done: settings.aiEngine == .onDevice || settings.usesClaude,
+                    text: settings.usesClaude
+                        ? "Claude writes your notes"
+                        : settings.aiEngine == .claude
+                            ? "Claude chosen, but Claude Code isn't installed yet"
+                            : "Notes written on this Mac")
+                SummaryRow(done: true, text: "When a call starts: \(settings.meetingDetection.label.lowercased())")
+                if google.isSignedIn {
+                    SummaryRow(done: true, text: "Calendar and Gmail connected")
+                }
+            }
+            .padding(20)
+            .frame(maxWidth: 440, alignment: .leading)
+            .surface(cornerRadius: 14)
         }
     }
+
+    // MARK: - Actions
 
     private var nameBinding: Binding<String> {
         Binding(get: { settings.userName }, set: { settings.userName = $0 })
     }
 
+    private var chosenFolders: [String] {
+        UseCase.allCases.filter { uses.contains($0) }.map(\.folder)
+    }
+
+    private func advance() {
+        if step == .ready {
+            finish()
+        } else {
+            go(1)
+        }
+    }
+
     private func go(_ delta: Int) {
         guard let next = Step(rawValue: step.rawValue + delta) else { return }
-        withAnimation(.easeInOut(duration: 0.25)) { step = next }
+        movingForward = delta > 0
+        withAnimation(Motion.respecting(reduceMotion, Motion.gentle)) { step = next }
         Task { await refresh() }
     }
 
-    private func addCustomFolder() {
-        let name = customFolder.trimmed
-        guard !name.isEmpty else { return }
-        if !extraFolders.contains(name) && !FolderPreset.all.contains(where: { $0.name == name }) {
-            extraFolders.append(name)
-        }
-        chosenFolders.insert(name)
-        customFolder = ""
-    }
-
     private func finish() {
-        for name in chosenFolders.sorted() {
+        for name in chosenFolders {
             library.createFolder(named: name)
+        }
+        // Someone who only records lectures should not have to pick the
+        // lecture template every time.
+        if uses == [.school] {
+            settings.defaultTemplateID = NoteTemplate.lecture.id
         }
         if settings.userName.trimmed.isEmpty, let name = google.account?.firstName {
             settings.userName = name
         }
-        settings.hasCompletedOnboarding = true
+        withAnimation(Motion.gentle) { settings.hasCompletedOnboarding = true }
     }
 
     private func refresh() async {
         checks = await Diagnostics.all()
     }
+
+    private func icon(for option: AppSettings.MeetingDetection) -> String {
+        switch option {
+        case .off: return "hand.raised"
+        case .ask: return "bell.badge"
+        case .automatic: return "record.circle"
+        }
+    }
+
+    private func detail(for option: AppSettings.MeetingDetection) -> String {
+        switch option {
+        case .off: return "Start every recording yourself."
+        case .ask: return "A small prompt offers to take notes. Recommended — the others on the call may not have agreed."
+        case .automatic: return "Recording starts on its own when a call does."
+        }
+    }
+}
+
+// MARK: - Use cases
+
+/// What someone records, and the folder that becomes.
+enum UseCase: String, CaseIterable, Identifiable, Hashable {
+    case work, school, oneOnOnes, clients, interviews, personal
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .work: return "Work calls"
+        case .school: return "Classes & lectures"
+        case .oneOnOnes: return "1:1s"
+        case .clients: return "Client calls"
+        case .interviews: return "Interviews"
+        case .personal: return "Personal"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .work: return "Standups, syncs, reviews"
+        case .school: return "Lectures and study groups"
+        case .oneOnOnes: return "Your manager, your reports"
+        case .clients: return "Sales and customer calls"
+        case .interviews: return "Hiring and user research"
+        case .personal: return "Everything else"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .work: return "briefcase"
+        case .school: return "graduationcap"
+        case .oneOnOnes: return "person.2"
+        case .clients: return "building.2"
+        case .interviews: return "person.badge.plus"
+        case .personal: return "heart"
+        }
+    }
+
+    var folder: String {
+        switch self {
+        case .work: return "Work"
+        case .school: return "School"
+        case .oneOnOnes: return "1:1s"
+        case .clients: return "Clients"
+        case .interviews: return "Interviews"
+        case .personal: return "Personal"
+        }
+    }
 }
 
 // MARK: - Pieces
 
-struct FolderPreset: Identifiable, Hashable {
-    let name: String
-    let icon: String
-    let detail: String
-    var id: String { name }
-
-    static let all = [
-        FolderPreset(name: "Work", icon: "briefcase", detail: "Team syncs, standups"),
-        FolderPreset(name: "School", icon: "graduationcap", detail: "Classes, study groups"),
-        FolderPreset(name: "Personal", icon: "person", detail: "Everything else"),
-        FolderPreset(name: "1:1s", icon: "person.2", detail: "Manager and reports"),
-        FolderPreset(name: "Clients", icon: "building.2", detail: "Customer calls"),
-        FolderPreset(name: "Interviews", icon: "person.badge.plus", detail: "Hiring loops"),
-        FolderPreset(name: "Projects", icon: "hammer", detail: "Side projects"),
-        FolderPreset(name: "Research", icon: "magnifyingglass", detail: "User interviews"),
-    ]
-
-    static func custom(_ name: String) -> FolderPreset {
-        FolderPreset(name: name, icon: "folder", detail: "Your folder")
-    }
-}
-
-private struct FolderChip: View {
-    let preset: FolderPreset
-    let selected: Bool
-    let toggle: () -> Void
-
-    var body: some View {
-        Button(action: toggle) {
-            HStack(spacing: 10) {
-                Image(systemName: preset.icon)
-                    .font(.title3)
-                    .frame(width: 24)
-                    .foregroundStyle(selected ? Color.white : Color.grove)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(preset.name).font(.callout.weight(.semibold))
-                    Text(preset.detail)
-                        .font(.caption2)
-                        .foregroundStyle(selected ? Color.white.opacity(0.8) : .secondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(selected ? Color.white : Color.secondary)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(selected ? AnyShapeStyle(Color.grove) : AnyShapeStyle(.background.opacity(0.6))))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(selected ? Color.clear : Color.secondary.opacity(0.2)))
-            .foregroundStyle(selected ? Color.white : Color.primary)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .animation(.easeOut(duration: 0.15), value: selected)
-    }
-}
-
-private struct StepHeader: View {
+private struct Question: View {
     let title: String
     let detail: String
-    var alignment: HorizontalAlignment = .center
 
     var body: some View {
-        VStack(alignment: alignment, spacing: 8) {
+        VStack(spacing: 10) {
             Text(title)
-                .font(.system(size: 26, weight: .bold, design: .rounded))
+                .font(.display(34))
+                .multilineTextAlignment(.center)
             Text(detail)
                 .font(.callout)
                 .foregroundStyle(.secondary)
-                .multilineTextAlignment(alignment == .center ? .center : .leading)
-                .frame(maxWidth: 480, alignment: alignment == .center ? .center : .leading)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 460)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
 
-private struct Feature<Control: View>: View {
+private struct ChoiceCard: View {
     let icon: String
     let title: String
     let detail: String
-    @ViewBuilder let control: () -> Control
+    let selected: Bool
+    let toggle: () -> Void
 
     var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundStyle(Color.grove)
-                .frame(width: 36)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.headline)
-                Text(detail)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+        Button(action: toggle) {
+            HStack(spacing: 12) {
+                IconTile(systemName: icon, size: 32, tint: selected ? .white : .grove)
+                    .background(
+                        selected ? Color.white.opacity(0.15) : Color.clear,
+                        in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.system(size: 14, weight: .semibold))
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(selected ? Color.white.opacity(0.85) : Color.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: 4)
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(selected ? Color.white : Color.secondary.opacity(0.5))
+                    .contentTransition(.symbolEffect(.replace))
             }
-            Spacer(minLength: 12)
-            control()
+            .foregroundStyle(selected ? Color.white : Color.primary)
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: Metrics.cardRadius, style: .continuous)
+                    .fill(selected ? Color.grove : Color.clear))
         }
-        .padding(14)
-        .background(.background.opacity(0.6), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .buttonStyle(CardButtonStyle())
+        .animation(Motion.snappy, value: selected)
     }
 }
 
-private struct Promise: View {
+private struct PromiseChip: View {
+    let icon: String
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon).foregroundStyle(Color.grove)
+            Text(text)
+        }
+        .font(.callout)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .surface(cornerRadius: 999)
+    }
+}
+
+private struct SourceCard: View {
     let icon: String
     let title: String
     let detail: String
@@ -473,40 +556,67 @@ private struct Promise: View {
             Image(systemName: icon)
                 .font(.title2)
                 .foregroundStyle(Color.grove)
-            Text(title).font(.callout.weight(.semibold))
-            Text(detail)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
+            Text(title).font(.system(size: 14, weight: .semibold))
+            Text(detail).font(.caption).foregroundStyle(.secondary)
         }
         .frame(width: 150, height: 96)
-        .background(.background.opacity(0.55), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .surface(cornerRadius: 14)
     }
 }
 
-private struct PageDots: View {
-    let count: Int
-    let current: Int
+private struct SummaryRow: View {
+    let done: Bool
+    let text: String
 
     var body: some View {
-        HStack(spacing: 6) {
-            ForEach(0..<count, id: \.self) { index in
+        HStack(spacing: 10) {
+            Image(systemName: done ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                .foregroundStyle(done ? Color.grove : Color.orange)
+            Text(text)
+                .font(.system(size: 14))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+private struct ProgressBar: View {
+    let progress: Double
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.groveWash)
                 Capsule()
-                    .fill(index == current ? Color.grove : Color.secondary.opacity(0.25))
-                    .frame(width: index == current ? 18 : 6, height: 6)
+                    .fill(Color.grove)
+                    .frame(width: max(6, proxy.size.width * progress))
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: current)
-        .accessibilityHidden(true)
+        .frame(height: 5)
+        .animation(Motion.gentle, value: progress)
+        .accessibilityElement()
+        .accessibilityLabel("Setup progress")
+        .accessibilityValue("\(Int(progress * 100)) percent")
     }
 }
 
-/// A soft wash of the icon's greens behind the onboarding steps.
+/// The canvas colour with a slow green glow that drifts as you move through
+/// the steps — enough to feel alive, not enough to distract.
 private struct OnboardingBackground: View {
+    let step: Int
+
     var body: some View {
-        LinearGradient(
-            colors: [Color.grove.opacity(0.10), Color.clear, Color.grove.opacity(0.05)],
-            startPoint: .topLeading, endPoint: .bottomTrailing)
-            .ignoresSafeArea()
+        ZStack {
+            Color.groveCanvas
+            RadialGradient(
+                colors: [Color.grove.opacity(0.22), Color.clear],
+                center: UnitPoint(x: 0.2 + 0.1 * Double(step % 4), y: 0.15),
+                startRadius: 0, endRadius: 520)
+            RadialGradient(
+                colors: [Color.grove.opacity(0.1), Color.clear],
+                center: UnitPoint(x: 0.9 - 0.08 * Double(step % 3), y: 0.95),
+                startRadius: 0, endRadius: 460)
+        }
+        .animation(.easeInOut(duration: 1.2), value: step)
+        .ignoresSafeArea()
     }
 }

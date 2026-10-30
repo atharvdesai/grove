@@ -11,18 +11,27 @@ struct RecordingOverlayView: View {
     let stop: () async -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 4) {
             // Says who is recording. Floating over another app with no window
             // chrome, the pill is otherwise an anonymous timer, and a stranger
             // seeing it on your screen has no idea what is listening.
             GroveLogo(size: 18)
                 .accessibilityLabel("Grove")
+                .padding(.leading, 4)
 
-            PulsingDot(paused: session.isPaused)
-
-            Text(session.elapsed.clockString)
-                .font(.system(.callout, design: .rounded).monospacedDigit().weight(.medium))
-                .foregroundStyle(.primary)
+            HStack(spacing: 7) {
+                ListeningBars(
+                    active: session.isCapturing && !session.isOffRecord,
+                    activity: session.segments.count,
+                    color: session.isPaused ? .orange : .red,
+                    height: 12)
+                Text(session.elapsed.clockString)
+                    .font(.system(.callout, design: .rounded).monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .contentTransition(.numericText())
+                    .animation(Motion.snappy, value: session.elapsed)
+            }
+            .padding(.horizontal, 6)
 
             if session.isOffRecord {
                 Text("OFF THE RECORD")
@@ -32,76 +41,55 @@ struct RecordingOverlayView: View {
                     .padding(.vertical, 2)
                     .background(Color.orange, in: Capsule())
                     .help("Nothing said now is kept. Press ⌃⌥O to go back on the record.")
+                    .transition(.scale.combined(with: .opacity))
             }
 
-            Divider().frame(height: 16)
+            Divider().frame(height: 16).padding(.horizontal, 2)
 
             Button {
                 session.toggleOffRecord()
             } label: {
                 Image(systemName: session.isOffRecord ? "eye.slash.fill" : "eye.slash")
-                    .foregroundStyle(session.isOffRecord ? Color.orange : Color.primary)
-                    .frame(width: 22, height: 22)
+                    .contentTransition(.symbolEffect(.replace))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CircleIconStyle(tint: session.isOffRecord ? .orange : nil, size: 26))
             .help(session.isOffRecord ? "Back on the record (⌃⌥O)" : "Off the record (⌃⌥O)")
 
             Button {
                 NotificationCenter.default.post(name: .toggleQuickNotes, object: nil)
             } label: {
                 Image(systemName: "square.and.pencil")
-                    .frame(width: 22, height: 22)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CircleIconStyle(size: 26))
             .help("Quick notes (\(QuickNotesShortcut.label))")
 
             Button {
                 session.togglePause()
             } label: {
                 Image(systemName: session.isPaused ? "play.fill" : "pause.fill")
-                    .frame(width: 22, height: 22)
+                    .contentTransition(.symbolEffect(.replace))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CircleIconStyle(size: 26))
             .help(session.isPaused ? "Resume" : "Pause")
 
             Button {
                 Task { await stop() }
             } label: {
                 Image(systemName: "stop.fill")
-                    .foregroundStyle(.red)
-                    .frame(width: 22, height: 22)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CircleIconStyle(tint: .red, size: 26))
             .help("Stop and write up the meeting")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 5)
+        // No SwiftUI shadow: it would be clipped by the panel's bounds. The
+        // panel draws its own.
         .background(.regularMaterial, in: Capsule())
-        .overlay(Capsule().strokeBorder(.quaternary, lineWidth: 0.5))
+        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
         // The whole pill is the drag handle, so there is no grab area to hunt
         // for; the buttons still take their own clicks.
         .contentShape(Capsule())
-    }
-}
-
-private struct PulsingDot: View {
-    let paused: Bool
-    @ViewState private var dim = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        Circle()
-            .fill(paused ? Color.orange : Color.red)
-            .frame(width: 9, height: 9)
-            .opacity(dim ? 0.35 : 1)
-            .onAppear { start() }
-            .onChange(of: paused) { _, _ in start() }
-    }
-
-    private func start() {
-        dim = false
-        guard !paused, !reduceMotion else { return }
-        withAnimation(.easeInOut(duration: 1).repeatForever(autoreverses: true)) { dim = true }
+        .animation(Motion.snappy, value: session.isOffRecord)
     }
 }
 

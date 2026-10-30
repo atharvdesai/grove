@@ -1,174 +1,323 @@
 import GroveKit
 import SwiftUI
 
-/// The during-the-meeting screen: your notepad on the left, the live transcript
-/// on the right.
+/// The during-the-meeting page: a notepad, a transcript drawer, and a floating
+/// control bar — then, once you stop, the notes being written.
 ///
-/// The notepad is the bigger half on purpose. The transcript is evidence the
+/// The notepad is the page on purpose. The transcript is evidence the
 /// enhancement pass consults; what the user types is the outline it must
-/// preserve, and that is the whole premise of the product.
+/// preserve, and that is the whole premise of the product. So the notepad gets
+/// the full reading column, and the transcript is a drawer you open when you
+/// want to check something — the way Granola keeps it a click away rather than
+/// competing for attention.
 struct RecordingView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(MeetingSession.self) private var session
 
+    private var isWritingUp: Bool {
+        switch session.phase {
+        case .finishing, .enhancing, .naming: return true
+        default: return false
+        }
+    }
+
     var body: some View {
-        @Bindable var session = session
-
-        VStack(spacing: 0) {
-            RecordingHeader()
-            Divider()
-
-            // No ideal widths, and modest minimums. With ideals the two panes
-            // asked for 940pt, which together with the 260pt sidebar exceeded
-            // the window; rather than shrink, the split view pushed the sidebar
-            // 41pt off the left edge and clipped it. The minimums here (560
-            // plus a 220 sidebar) fit inside the 860pt minimum window with room
-            // to spare, so nothing can be forced out of view.
-            HSplitView {
-                NotepadPane(text: $session.roughNotes)
-                    .frame(minWidth: 320, maxWidth: .infinity)
-                    .layoutPriority(1)  // the notepad gets the spare space
-                if settings.showTranscriptWhileRecording {
-                    TranscriptPane(segments: session.segments)
-                        .frame(minWidth: 240, maxWidth: .infinity)
-                }
+        ZStack {
+            if isWritingUp {
+                WritingUpView()
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            } else {
+                LiveNotepad()
+                    .transition(.opacity)
             }
+        }
+        .animation(Motion.gentle, value: isWritingUp)
+    }
+}
+
+// MARK: - Live
+
+private struct LiveNotepad: View {
+    @Environment(AppSettings.self) private var settings
+    @Environment(MeetingSession.self) private var session
+
+    var body: some View {
+        @Bindable var settings = settings
+
+        HStack(spacing: 0) {
+            NotepadColumn()
+                .frame(maxWidth: .infinity)
+
+            if settings.showTranscriptWhileRecording {
+                TranscriptDrawer(segments: session.segments)
+                    .frame(width: 330)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+        }
+        .overlay(alignment: .bottom) {
+            VStack(spacing: 8) {
+                if session.isRecording && !session.microphoneAvailable {
+                    Label(
+                        "Microphone unavailable — only the far end will be transcribed",
+                        systemImage: "mic.slash")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .floatingSurface(Capsule())
+                }
+                ControlBar(showTranscript: $settings.showTranscriptWhileRecording.animation(Motion.gentle))
+            }
+            .padding(.bottom, 18)
         }
     }
 }
 
-private struct RecordingHeader: View {
-    @Environment(MeetingSession.self) private var session
+private struct NotepadColumn: View {
     @Environment(AppSettings.self) private var settings
+    @Environment(MeetingSession.self) private var session
     @Environment(MeetingLibrary.self) private var library
+    @FocusState private var notesFocused: Bool
 
     var body: some View {
         @Bindable var session = session
 
-        HStack(spacing: 12) {
-            RecordingIndicator(active: session.isCapturing, paused: session.isPaused)
+        VStack(alignment: .leading, spacing: 10) {
+            meta
 
-            // Everything here must be able to give up width. With a fixed-width
-            // picker and an untruncatable status string, the header's demand
-            // plus the sidebar exceeded the window, and NavigationSplitView
-            // resolved that by sliding the sidebar off the left edge.
             TextField(
                 settings.autoOrganize ? "Untitled — named when it ends" : "Meeting title",
                 text: $session.title)
                 .textFieldStyle(.plain)
-                .font(.title3.weight(.medium))
-                .frame(minWidth: 100, maxWidth: 360)
-                .layoutPriority(1)
-
-            Spacer(minLength: 8)
-
-            if session.isRecording {
-                Picker("Template", selection: $session.templateID) {
-                    ForEach(library.templates) { template in
-                        Text(template.name).tag(template.id)
-                    }
-                }
-                .labelsHidden()
-                .frame(minWidth: 110, idealWidth: 160, maxWidth: 160)
-                .help("How Grove should structure the finished notes")
-            }
-
-            Text(session.statusText)
-                .font(.callout.monospacedDigit())
-                .foregroundStyle(session.isRecording ? .primary : .secondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .layoutPriority(-1)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .overlay(alignment: .bottom) {
-            if session.isRecording && !session.microphoneAvailable {
-                Text("Microphone unavailable — only the far end will be transcribed")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-        }
-    }
-}
-
-private struct RecordingIndicator: View {
-    let active: Bool
-    var paused: Bool = false
-    @ViewState private var pulsing = false
-
-    var body: some View {
-        Circle()
-            .fill(paused ? Color.orange : (active ? Color.red : Color.secondary))
-            .frame(width: 10, height: 10)
-            .opacity(active && pulsing ? 0.35 : 1)
-            .animation(
-                active
-                    ? .easeInOut(duration: 1).repeatForever(autoreverses: true)
-                    : .default,
-                value: pulsing
-            )
-            .onAppear { pulsing = active }
-            .onChange(of: active) { _, isActive in pulsing = isActive }
-            .accessibilityLabel(active ? "Recording" : "Not recording")
-    }
-}
-
-private struct NotepadPane: View {
-    @Binding var text: String
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            PaneTitle("Your notes", detail: "Fragments are fine")
+                .font(.display(30))
 
             ZStack(alignment: .topLeading) {
-                TextEditor(text: $text)
-                    .font(.system(size: 14))
+                TextEditor(text: $session.roughNotes)
+                    .font(.system(size: 15))
+                    .lineSpacing(4)
                     .scrollContentBackground(.hidden)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .focused($focused)
+                    .focused($notesFocused)
+                    // TextEditor insets its text by a few points; this lines
+                    // the caret up with the title above it.
+                    .padding(.leading, -5)
 
-                if text.isEmpty {
-                    Text("- who said they'd own onboarding?\n- 40% drop at invite screen\n- revisit mobile after week-4 retention")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.quaternary)
-                        .padding(.horizontal, 17)
-                        .padding(.vertical, 16)
+                if session.roughNotes.isEmpty {
+                    Text(
+                        "Write what matters to you — fragments are fine.\n"
+                            + "Grove fills in the rest from what was said.")
+                        .font(.system(size: 15))
+                        .lineSpacing(4)
+                        .foregroundStyle(.tertiary)
                         .allowsHitTesting(false)
                 }
             }
+            .padding(.top, 6)
         }
-        // Typing is the main job on this screen, so take the caret immediately.
-        .onAppear { focused = true }
+        .frame(maxWidth: Metrics.readingWidth, alignment: .leading)
+        .padding(.horizontal, 44)
+        .padding(.top, 40)
+        // Room for the control bar, so the last line never hides under it.
+        .padding(.bottom, 84)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // Typing is the main job on this page, so take the caret immediately.
+        .onAppear { notesFocused = true }
+    }
+
+    /// Chips above the title: when, where, and the template.
+    private var meta: some View {
+        HStack(spacing: 6) {
+            MetaChip(icon: "calendar", text: Date().formatted(.dateTime.weekday(.abbreviated).day().month()))
+            if session.inPerson {
+                MetaChip(icon: "person.2", text: "In person")
+            } else if let app = session.meetingApp {
+                MetaChip(icon: "video", text: app)
+            }
+            if let event = session.calendarEvent, !event.attendees.isEmpty {
+                MetaChip(
+                    icon: "person.crop.circle",
+                    text: event.attendees.prefix(2).joined(separator: ", ")
+                        + (event.attendees.count > 2 ? " +\(event.attendees.count - 2)" : ""))
+            }
+            Menu {
+                ForEach(library.templates) { template in
+                    Button {
+                        session.templateID = template.id
+                    } label: {
+                        if template.id == session.templateID {
+                            Label(template.name, systemImage: "checkmark")
+                        } else {
+                            Text(template.name)
+                        }
+                    }
+                }
+            } label: {
+                MetaChip(icon: "list.bullet.rectangle", text: library.template(id: session.templateID).name)
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("How Grove should structure the finished notes")
+        }
     }
 }
 
-private struct TranscriptPane: View {
+private struct MetaChip: View {
+    let icon: String
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+            Text(text).lineLimit(1)
+        }
+        .font(.caption.weight(.medium))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.groveWash, in: Capsule())
+    }
+}
+
+/// The floating capsule: what's happening, and every control a meeting needs.
+private struct ControlBar: View {
+    @Binding var showTranscript: Bool
+    @Environment(MeetingSession.self) private var session
+    @Environment(MeetingLibrary.self) private var library
+
+    var body: some View {
+        HStack(spacing: 6) {
+            HStack(spacing: 9) {
+                if session.phase == .starting {
+                    ProgressView().controlSize(.small)
+                    Text("Getting ready…")
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(.secondary)
+                } else {
+                    ListeningBars(
+                        active: session.isCapturing && !session.isOffRecord,
+                        activity: session.segments.count,
+                        color: session.isPaused ? .orange : session.isOffRecord ? .secondary : .red)
+                    Text(session.elapsed.clockString)
+                        .font(.system(.callout, design: .rounded).monospacedDigit().weight(.semibold))
+                        .contentTransition(.numericText())
+                        .animation(Motion.snappy, value: session.elapsed)
+                    if session.isPaused {
+                        Text("Paused")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.orange)
+                            .transition(.opacity)
+                    } else if session.isOffRecord {
+                        Text("Off the record")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.orange)
+                            .transition(.opacity)
+                    }
+                }
+            }
+            .padding(.leading, 14)
+            .padding(.trailing, 6)
+
+            Divider().frame(height: 18)
+
+            Button {
+                session.togglePause()
+            } label: {
+                Image(systemName: session.isPaused ? "play.fill" : "pause.fill")
+                    .contentTransition(.symbolEffect(.replace))
+            }
+            .buttonStyle(CircleIconStyle(size: 32))
+            .disabled(!session.isRecording)
+            .help(session.isPaused ? "Resume (⇧⌘P)" : "Pause (⇧⌘P)")
+
+            Button {
+                session.toggleOffRecord()
+            } label: {
+                Image(systemName: session.isOffRecord ? "eye.slash.fill" : "eye.slash")
+                    .contentTransition(.symbolEffect(.replace))
+            }
+            .buttonStyle(CircleIconStyle(tint: session.isOffRecord ? .orange : nil, size: 32))
+            .disabled(!session.isRecording)
+            .help(session.isOffRecord ? "Back on the record (⌃⌥O)" : "Off the record — nothing said is kept (⌃⌥O)")
+
+            Button {
+                showTranscript.toggle()
+            } label: {
+                Image(systemName: "text.quote")
+            }
+            .buttonStyle(CircleIconStyle(tint: showTranscript ? .grove : nil, size: 32))
+            .help(showTranscript ? "Hide the live transcript" : "Show the live transcript")
+
+            Button {
+                Task {
+                    await session.stop()
+                    library.reload()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "stop.fill").font(.system(size: 10, weight: .bold))
+                    Text("Stop")
+                }
+            }
+            .buttonStyle(ProminentCapsuleStyle(tint: .red))
+            .disabled(!session.isRecording)
+            .keyboardShortcut(".", modifiers: .command)
+            .help("Stop and write up the meeting (⌘.)")
+            .padding(.leading, 4)
+        }
+        .padding(5)
+        .floatingSurface(Capsule())
+        .animation(Motion.snappy, value: session.isPaused)
+        .animation(Motion.snappy, value: session.isOffRecord)
+    }
+}
+
+private struct TranscriptDrawer: View {
     let segments: [TranscriptSegment]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            PaneTitle("Transcript", detail: segments.isEmpty ? "Listening…" : "\(segments.count) segments")
+            HStack {
+                Text("Live transcript")
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Text(segments.isEmpty ? "Listening…" : "\(segments.count)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.numericText())
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 18)
+            .padding(.bottom, 10)
 
-            ScrollViewReader { proxy in
+            if segments.isEmpty {
+                VStack(spacing: 10) {
+                    ListeningBars(active: true, color: .secondary, barCount: 5, height: 18)
+                    Text("Words appear here as people speak.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 10) {
+                    LazyVStack(alignment: .leading, spacing: 14) {
                         ForEach(segments) { segment in
-                            SegmentRow(segment: segment).id(segment.id)
+                            SegmentRow(segment: segment)
+                                .id(segment.id)
+                                .transition(.opacity.combined(with: .offset(y: 6)))
                         }
                     }
-                    .padding(12)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 90)
+                    .animation(Motion.snappy, value: segments.count)
                 }
-                .onChange(of: segments.count) { _, _ in
-                    guard let last = segments.last else { return }
-                    withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
-                }
+                .defaultScrollAnchor(.bottom)
             }
         }
-        .background(.quaternary.opacity(0.12))
+        .background(Color.primary.opacity(0.025))
+        .overlay(alignment: .leading) {
+            Rectangle().fill(Color.primary.opacity(0.08)).frame(width: 0.5)
+        }
     }
 }
 
@@ -176,17 +325,21 @@ private struct SegmentRow: View {
     let segment: TranscriptSegment
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
+                Circle()
+                    .fill(segment.speaker == .me ? Color.grove : Color.blue)
+                    .frame(width: 6, height: 6)
                 Text(segment.speaker.displayName)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(segment.speaker == .me ? Color.grove : .secondary)
+                    .foregroundStyle(segment.speaker == .me ? Color.grove : Color.blue)
                 Text(segment.start.clockString)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.tertiary)
             }
             Text(segment.text)
                 .font(.system(size: 13))
+                .lineSpacing(2)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -194,27 +347,77 @@ private struct SegmentRow: View {
     }
 }
 
-struct PaneTitle: View {
-    let title: String
-    let detail: String?
+// MARK: - Writing up
 
-    init(_ title: String, detail: String? = nil) {
-        self.title = title
-        self.detail = detail
+/// What you see between Stop and the finished notes: which step is running,
+/// so a pause of several seconds reads as work rather than a hang.
+private struct WritingUpView: View {
+    @Environment(MeetingSession.self) private var session
+
+    private struct Step: Identifiable {
+        let id: Int
+        let title: String
+    }
+
+    private let steps = [
+        Step(id: 0, title: "Finishing the transcript"),
+        Step(id: 1, title: "Writing your notes"),
+        Step(id: 2, title: "Naming and filing"),
+    ]
+
+    private var current: Int {
+        switch session.phase {
+        case .finishing: return 0
+        case .enhancing: return 1
+        case .naming: return 2
+        default: return 0
+        }
     }
 
     var body: some View {
-        HStack {
-            Text(title.uppercased())
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
+        VStack(spacing: 26) {
             Spacer()
-            if let detail {
-                Text(detail).font(.caption).foregroundStyle(.tertiary)
+            Image(systemName: "sparkles")
+                .font(.system(size: 40, weight: .light))
+                .foregroundStyle(Color.grove)
+                .symbolEffect(.pulse, options: .repeating)
+            VStack(spacing: 6) {
+                Text(session.title.trimmed.isEmpty ? "Writing up your meeting" : session.title)
+                    .font(.display(28))
+                    .multilineTextAlignment(.center)
+                Text("\(session.elapsed.clockString) recorded · this takes a few seconds")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(steps) { step in
+                    HStack(spacing: 10) {
+                        Group {
+                            if step.id < current {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(Color.grove)
+                            } else if step.id == current {
+                                ProgressView().controlSize(.small)
+                            } else {
+                                Image(systemName: "circle")
+                                    .foregroundStyle(.quaternary)
+                            }
+                        }
+                        .frame(width: 18)
+                        .transition(.scale.combined(with: .opacity))
+                        Text(step.title)
+                            .foregroundStyle(step.id <= current ? .primary : .secondary)
+                    }
+                    .font(.system(size: 14))
+                }
+            }
+            .padding(18)
+            .frame(width: 300, alignment: .leading)
+            .surface()
+            .animation(Motion.snappy, value: current)
+            Spacer()
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 10)
-        .padding(.bottom, 6)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(40)
     }
 }

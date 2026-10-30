@@ -13,10 +13,19 @@ struct InsightsView: View {
         case questions = "Open questions"
         case glossary = "Glossary"
         var id: String { rawValue }
+
+        var subtitle: String {
+            switch self {
+            case .people: return "Who you meet, and what's owed both ways"
+            case .decisions: return "Every decision, newest first"
+            case .waiting: return "What other people promised you"
+            case .questions: return "Raised in a meeting and never answered"
+            case .glossary: return "Jargon, defined from how it was used"
+            }
+        }
     }
 
     @Environment(MeetingLibrary.self) private var library
-    @Environment(\.dismiss) private var dismiss
     @ViewState var tab: Tab = .people
     @ViewState private var person: LibraryIndex.Person?
     @ViewState private var folder: String?
@@ -25,16 +34,13 @@ struct InsightsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Picker("", selection: $tab) {
-                    ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
-            }
-            .padding(14)
-            Divider()
+            PageHeader(tab.rawValue, subtitle: tab.subtitle)
+                .padding(.horizontal, 40)
+                .padding(.top, 40)
+                .padding(.bottom, 14)
+            PillTabs(selection: $tab, options: Tab.allCases) { $0.rawValue }
+                .padding(.horizontal, 40)
+                .padding(.bottom, 10)
 
             Group {
                 switch tab {
@@ -45,9 +51,12 @@ struct InsightsView: View {
                 case .glossary: glossaryTab
                 }
             }
+            .id(tab)
+            .transition(.opacity)
+            .scrollContentBackground(.hidden)
+            .padding(.horizontal, 28)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            Divider()
             HStack {
                 if let analyzeResult {
                     Text(analyzeResult).font(.caption).foregroundStyle(.secondary)
@@ -61,12 +70,13 @@ struct InsightsView: View {
                     }
                 }
                 .disabled(analyzing)
+                .buttonStyle(.borderless)
                 .help("Read summaries, decisions and promises out of meetings saved before Grove did this")
             }
-            .padding(10)
+            .padding(.horizontal, 40)
+            .padding(.vertical, 12)
         }
-        .frame(width: 640, height: 560)
-        .sheet(item: $person) { PersonView(person: $0, open: open) }
+        .managedSheet(item: $person) { PersonView(person: $0, open: open) }
     }
 
     // MARK: - Tabs
@@ -201,11 +211,11 @@ struct InsightsView: View {
 
     // MARK: - Helpers
 
+    /// Opens the meeting. `PersonView` calls this only after it has closed
+    /// itself, so navigation never happens under a sheet that is still up.
     private func open(_ ref: LibraryIndex.Ref) {
         NotificationCenter.default.post(
             name: .navigateToMeeting, object: nil, userInfo: ["meetingID": ref.meetingID])
-        person = nil
-        dismiss()
     }
 
     @ViewBuilder
@@ -238,9 +248,11 @@ struct InsightsView: View {
 /// other, and what's still unanswered between you.
 private struct PersonView: View {
     let person: LibraryIndex.Person
+    /// The parent's open, which navigates to the meeting. Reached through
+    /// `openMeeting`, which closes this sheet first.
     let open: (LibraryIndex.Ref) -> Void
     @Environment(MeetingLibrary.self) private var library
-    @Environment(\.dismiss) private var dismiss
+    @CloseSheet private var close
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -254,7 +266,7 @@ private struct PersonView: View {
                     }
                 }
                 Spacer()
-                Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
+                Button("Done") { close() }.keyboardShortcut(.cancelAction)
             }
             .padding(16)
             Divider()
@@ -275,14 +287,14 @@ private struct PersonView: View {
                         ForEach(person.openQuestions) { question in
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(question.text)
-                                SourceLink(ref: question, open: open).font(.caption)
+                                SourceLink(ref: question, open: openMeeting).font(.caption)
                             }
                         }
                     }
                 }
                 Section("Meetings") {
                     ForEach(person.meetings) { ref in
-                        Button { open(ref) } label: {
+                        Button { openMeeting(ref) } label: {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(ref.meetingTitle)
                                 Text(ref.text.isEmpty ? ref.date.formatted(date: .abbreviated, time: .shortened) : ref.text)
@@ -300,6 +312,10 @@ private struct PersonView: View {
         .frame(width: 560, height: 520)
     }
 
+    private func openMeeting(_ ref: LibraryIndex.Ref) {
+        close { open(ref) }
+    }
+
     private func promiseRow(_ promise: LibraryIndex.Promise) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Button { library.setDone(promise, done: true) } label: {
@@ -310,7 +326,7 @@ private struct PersonView: View {
                 Text(promise.commitment.task)
                 HStack(spacing: 6) {
                     if let due = promise.commitment.due { Text("due \(due) ·").foregroundStyle(.secondary) }
-                    SourceLink(ref: promise.ref, open: open)
+                    SourceLink(ref: promise.ref, open: openMeeting)
                 }
                 .font(.caption)
             }

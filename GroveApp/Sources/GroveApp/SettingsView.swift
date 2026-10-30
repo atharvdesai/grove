@@ -28,82 +28,26 @@ struct SettingsView: View {
 /// Claude Code app on this Mac, billed to the user's own Claude plan.
 private struct AISettings: View {
     @Environment(AppSettings.self) private var settings
-    @ViewState private var testing = false
-    @ViewState private var testResult: String?
 
     var body: some View {
-        @Bindable var settings = settings
-
-        Form {
-            Section {
-                Picker("Write notes with", selection: $settings.aiEngine) {
-                    ForEach(AppSettings.AIEngine.allCases) { Text($0.label).tag($0) }
-                }
-                .pickerStyle(.radioGroup)
-
-                if settings.aiEngine == .claude {
-                    if let path = settings.claudeExecutable {
-                        LabeledContent("Claude Code") {
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Label("Found", systemImage: "checkmark.circle.fill")
-                                    .foregroundStyle(.green)
-                                Text(ClaudeCodeEngine.version(of: path) ?? path.path)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        HStack {
-                            Button(testing ? "Asking Claude…" : "Test Claude") { Task { await test() } }
-                                .disabled(testing)
-                            if let testResult {
-                                Text(testResult)
-                                    .font(.caption)
-                                    .foregroundStyle(testResult.hasPrefix("Working") ? .green : .red)
-                                    .lineLimit(2)
-                            }
-                        }
-                    } else {
-                        LabeledContent("Claude Code") {
-                            Label("Not installed", systemImage: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.orange)
-                        }
-                        HStack {
-                            Link("Get Claude Code", destination: URL(string: "https://claude.com/product/claude-code")!)
-                            Spacer()
-                            Button("Check Again") { settings.recheckClaude() }
-                        }
-                    }
-                }
-            } footer: {
-                Text(
-                    settings.aiEngine == .claude
-                        ? "Grove runs the Claude Code app on this Mac with Claude Haiku 5.5 — "
-                            + "the lightest model, so it uses the least of your plan. Transcripts "
-                            + "go to Anthropic for this. If Claude can't run, Grove falls back to "
-                            + "the on-device model and tells you."
-                        : "Everything stays on this Mac. Apple's model is smaller, so long "
-                            + "meetings are split by topic and summarised from the facts in each.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Who writes your notes").font(.headline)
+            // The same card as onboarding and the sidebar chip, so all three
+            // describe the connection the same way.
+            ClaudeConnectionCard()
+            Text(
+                settings.aiEngine == .claude
+                    ? "Grove runs the Claude Code app on this Mac with Claude Haiku 5.5 — "
+                        + "the lightest model, so it uses the least of your plan. If Claude can't "
+                        + "run, Grove falls back to the on-device model and tells you."
+                    : "Apple's model is smaller, so long meetings are split by topic and "
+                        + "summarised from the facts in each.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .formStyle(.grouped)
-        .padding(.vertical, 8)
+        .padding(20)
         .frame(width: 520)
-        .onAppear { settings.recheckClaude() }
-    }
-
-    private func test() async {
-        testing = true
-        defer { testing = false }
-        do {
-            let reply = try await ClaudeCodeEngine(executable: settings.claudeExecutable)
-                .generate(instructions: "Reply with exactly: OK", prompt: "Say OK.")
-            testResult = "Working — Claude replied “\(reply.prefix(20))”"
-        } catch {
-            testResult = error.localizedDescription
-        }
     }
 }
 

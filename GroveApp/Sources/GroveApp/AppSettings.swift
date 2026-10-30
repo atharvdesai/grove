@@ -66,7 +66,10 @@ final class AppSettings {
         static let defaultTemplate = "defaultTemplateID"
         static let storagePath = "storagePath"
         static let showTranscriptWhileRecording = "showTranscriptWhileRecording"
-        static let completedOnboarding = "hasCompletedOnboarding"
+        /// Versioned: bumping it shows onboarding once more to everyone, which
+        /// is how people who set up before the redesign get the new setup —
+        /// including choosing who writes their notes.
+        static let completedOnboarding = "hasCompletedOnboarding.v2"
         static let showRecordingOverlay = "showRecordingOverlay"
         static let meetingDetection = "meetingDetection"
         static let autoOrganize = "autoOrganizeMeetings"

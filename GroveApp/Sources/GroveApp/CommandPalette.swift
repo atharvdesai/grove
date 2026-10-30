@@ -4,6 +4,7 @@ import SwiftUI
 /// The sheets the main window can show, openable from anywhere — a home
 /// screen card, the ⌘K bar, a menu — by posting `.showAppSheet`.
 enum AppSheet: String, Identifiable {
+    case newMeeting
     case chat, actionItems, digest, palette
     case people, decisions, waiting, questions, glossary
 
@@ -22,11 +23,12 @@ enum AppSheet: String, Identifiable {
 struct CommandPalette: View {
     @Environment(MeetingLibrary.self) private var library
     @Environment(MeetingSession.self) private var session
-    @Environment(\.dismiss) private var dismiss
+    @CloseSheet private var close
     @ViewState private var text = ""
+    @ViewState private var highlighted = 0
     @FocusState private var focused: Bool
 
-    private struct Item: Identifiable {
+    fileprivate struct Item: Identifiable {
         let id: String
         let icon: String
         let title: String
@@ -35,41 +37,75 @@ struct CommandPalette: View {
     }
 
     var body: some View {
+        let items = self.items
         VStack(spacing: 0) {
             HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                Image(systemName: "magnifyingglass")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
                 TextField("Search meetings, people, decisions, or type a command", text: $text)
                     .textFieldStyle(.plain)
                     .font(.title3)
                     .focused($focused)
-                    .onSubmit { items.first?.run() }
+                    .onSubmit { run(items, at: highlighted) }
+                    .onKeyPress(.downArrow) {
+                        move(by: 1, count: items.count)
+                        return .handled
+                    }
+                    .onKeyPress(.upArrow) {
+                        move(by: -1, count: items.count)
+                        return .handled
+                    }
             }
-            .padding(14)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
             Divider()
 
-            List(items) { item in
-                Button(action: item.run) {
-                    HStack(spacing: 10) {
-                        Image(systemName: item.icon)
-                            .frame(width: 20)
-                            .foregroundStyle(Color.grove)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(item.title).lineLimit(1)
-                            if !item.detail.isEmpty {
-                                Text(item.detail).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                            }
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 2) {
+                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                            PaletteRow(item: item, isHighlighted: index == highlighted)
+                                .id(item.id)
+                                .onTapGesture { item.run() }
+                                .onHover { if $0 { highlighted = index } }
                         }
-                        Spacer()
                     }
-                    .contentShape(Rectangle())
+                    .padding(6)
                 }
-                .buttonStyle(.plain)
+                .onChange(of: highlighted) { _, index in
+                    guard items.indices.contains(index) else { return }
+                    proxy.scrollTo(items[index].id)
+                }
             }
-            .listStyle(.plain)
+
+            Divider()
+            HStack(spacing: 14) {
+                KeyHint(keys: "↑↓", label: "Move")
+                KeyHint(keys: "↩", label: "Open")
+                KeyHint(keys: "esc", label: "Close")
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
         }
-        .frame(width: 560, height: 420)
+        .frame(width: 600, height: 440)
         .onAppear { focused = true }
-        .onExitCommand { dismiss() }
+        .onExitCommand { close() }
+        .onChange(of: text) { _, _ in highlighted = 0 }
+    }
+
+    private func move(by step: Int, count: Int) {
+        guard count > 0 else { return }
+        highlighted = min(max(highlighted + step, 0), count - 1)
+    }
+
+    private func run(_ items: [Item], at index: Int) {
+        guard items.indices.contains(index) else {
+            items.first?.run()
+            return
+        }
+        items[index].run()
     }
 
     private var items: [Item] {
@@ -169,10 +205,64 @@ struct CommandPalette: View {
         NotificationCenter.default.post(name: .navigateToMeeting, object: nil, userInfo: ["meetingID": id])
     }
 
-    /// Closes the palette first, so a command that opens another sheet isn't
-    /// blocked by this one.
+    /// Closes the palette first, and runs the command once it has gone, so a
+    /// command that opens another sheet never overlaps this one.
     private func finish(_ action: @escaping () -> Void) {
-        dismiss()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: action)
+        close(then: action)
+    }
+}
+
+/// One palette result. The highlight is the keyboard cursor; hovering moves it,
+/// so mouse and keyboard never disagree about which row Return will open.
+private struct PaletteRow: View {
+    let item: CommandPalette.Item
+    let isHighlighted: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: item.icon)
+                .frame(width: 22)
+                .foregroundStyle(isHighlighted ? Color.white : Color.grove)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.title).lineLimit(1)
+                if !item.detail.isEmpty {
+                    Text(item.detail)
+                        .font(.caption)
+                        .foregroundStyle(isHighlighted ? Color.white.opacity(0.8) : Color.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer()
+            if isHighlighted {
+                Image(systemName: "return")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+        }
+        .foregroundStyle(isHighlighted ? Color.white : Color.primary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: Metrics.controlRadius, style: .continuous)
+                .fill(isHighlighted ? Color.grove : Color.clear))
+        .contentShape(Rectangle())
+    }
+}
+
+private struct KeyHint: View {
+    let keys: String
+    let label: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(keys)
+                .font(.caption2.weight(.semibold).monospaced())
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+            Text(label)
+                .font(.caption)
+        }
+        .foregroundStyle(.secondary)
     }
 }

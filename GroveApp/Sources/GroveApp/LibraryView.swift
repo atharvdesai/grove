@@ -238,170 +238,11 @@ final class MeetingLibrary {
     }
 }
 
-struct LibrarySidebar: View {
-    @Environment(MeetingLibrary.self) private var library
-    @Environment(MeetingSession.self) private var session
-    @Binding var selection: Meeting.ID?
-
-    @ViewState private var renaming: Meeting?
-    @ViewState private var deleting: Meeting?
-    @ViewState private var newFolderName = ""
-    @ViewState private var showingNewFolder = false
-    @ViewState private var query = ""
-
-    private var searching: Bool { !query.trimmed.isEmpty }
-
-    var body: some View {
-        let visible = library.meetings(matching: query)
-
-        List(selection: $selection) {
-            if session.isBusy {
-                Section {
-                    HStack(spacing: 8) {
-                        Image(systemName: session.isPaused ? "pause.circle.fill" : "record.circle.fill")
-                            .foregroundStyle(session.isPaused ? .orange : .red)
-                        Text(session.isRecording ? "In progress" : session.statusText)
-                            .lineLimit(1)
-                    }
-                    .font(.callout)
-                }
-            }
-
-            // Loose meetings first, then a section per folder. A tree with
-            // disclosure would nest more prettily and makes drag-to-file harder
-            // to get right; sections keep everything one click away.
-            let loose = visible.filter { $0.folder == nil }
-            if !loose.isEmpty {
-                Section("Meetings") {
-                    ForEach(loose) { row(for: $0) }
-                }
-            }
-
-            // While searching, a folder with no matches is just noise.
-            ForEach(
-                library.allFolders.filter { folder in
-                    !searching || visible.contains { $0.folder == folder }
-                }, id: \.self
-            ) { folder in
-                Section {
-                    ForEach(visible.filter { $0.folder == folder }) { row(for: $0) }
-                } header: {
-                    HStack {
-                        Label(folder, systemImage: "folder")
-                        Spacer()
-                    }
-                    .contextMenu {
-                        Button("Delete Folder", role: .destructive) {
-                            library.deleteFolder(named: folder)
-                        }
-                    }
-                }
-            }
-        }
-        .listStyle(.sidebar)
-        .searchable(text: $query, placement: .sidebar, prompt: "Search meetings")
-        .overlay {
-            if searching && visible.isEmpty {
-                ContentUnavailableView.search(text: query)
-            } else if library.meetings.isEmpty && !session.isBusy {
-                ContentUnavailableView(
-                    "No meetings yet",
-                    systemImage: "tray",
-                    description: Text("Recorded meetings are saved to\n\(library.store.baseDirectory.path)"))
-            }
-        }
-        .safeAreaInset(edge: .bottom) {
-            HStack(spacing: 14) {
-                Button {
-                    NotificationCenter.default.post(name: .newMeeting, object: nil)
-                } label: {
-                    Label("New Meeting", systemImage: "plus.circle.fill")
-                }
-                .disabled(session.isBusy)
-                .help("Name a meeting and start recording (⌘N)")
-
-                Spacer()
-
-                Button {
-                    newFolderName = ""
-                    showingNewFolder = true
-                } label: {
-                    Label("New Folder", systemImage: "folder.badge.plus")
-                        .labelStyle(.iconOnly)
-                }
-                .help("New folder")
-
-                // ⌘, is the Mac convention and completely undiscoverable to
-                // anyone who does not already know it.
-                SettingsLink {
-                    Label("Settings", systemImage: "gearshape")
-                        .labelStyle(.iconOnly)
-                }
-                .help("Settings (⌘,)")
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(.bar)
-        }
-        .alert("New Folder", isPresented: $showingNewFolder) {
-            TextField("Name", text: $newFolderName)
-            Button("Cancel", role: .cancel) {}
-            Button("Create") { library.createFolder(named: newFolderName) }
-        }
-        .sheet(item: $renaming) { meeting in
-            RenameSheet(meeting: meeting) { library.rename(meeting, to: $0) }
-        }
-        .confirmationDialog(
-            "Move “\(deleting?.title ?? "")” to the Trash?",
-            isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } }),
-            presenting: deleting
-        ) { meeting in
-            Button("Move to Trash", role: .destructive) {
-                if selection == meeting.id { selection = nil }
-                library.delete(meeting)
-            }
-        } message: { _ in
-            Text("The notes and transcript go to the Trash, so you can put them back.")
-        }
-    }
-
-    @ViewBuilder
-    private func row(for meeting: Meeting) -> some View {
-        // `.tag` must be the outermost modifier. Applied before `.contextMenu`
-        // the list stops finding it and selection silently never happens —
-        // clicks land, nothing highlights, the detail pane stays empty.
-        MeetingRow(meeting: meeting)
-            .contextMenu {
-                Button("Rename…") { renaming = meeting }
-
-                Menu("Move to") {
-                    if meeting.folder != nil {
-                        Button("Meetings") { library.move(meeting, to: nil) }
-                    }
-                    ForEach(library.allFolders.filter { $0 != meeting.folder }, id: \.self) { folder in
-                        Button(folder) { library.move(meeting, to: folder) }
-                    }
-                }
-                .disabled(library.allFolders.filter { $0 != meeting.folder }.isEmpty
-                    && meeting.folder == nil)
-
-                Button("Show in Finder") {
-                    NSWorkspace.shared.selectFile(
-                        nil, inFileViewerRootedAtPath: library.store.directory(for: meeting).path)
-                }
-                Divider()
-                Button("Move to Trash", role: .destructive) { deleting = meeting }
-            }
-            .tag(meeting.id)
-    }
-}
-
-private struct RenameSheet: View {
+struct RenameSheet: View {
     let meeting: Meeting
     let commit: (String) -> Void
 
-    @Environment(\.dismiss) private var dismiss
+    @CloseSheet private var close
     @ViewState private var title: String
 
     init(meeting: Meeting, commit: @escaping (String) -> Void) {
@@ -418,7 +259,8 @@ private struct RenameSheet: View {
                 .onSubmit(save)
             HStack {
                 Spacer()
-                Button("Cancel") { dismiss() }
+                Button("Cancel") { close() }
+                    .keyboardShortcut(.cancelAction)
                 Button("Rename", action: save)
                     .keyboardShortcut(.defaultAction)
                     .disabled(title.trimmed.isEmpty)
@@ -431,36 +273,7 @@ private struct RenameSheet: View {
     private func save() {
         guard !title.trimmed.isEmpty else { return }
         commit(title)
-        dismiss()
-    }
-}
-
-private struct MeetingRow: View {
-    let meeting: Meeting
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(meeting.title).lineLimit(1)
-            if !meeting.resolvedInsights.summary.isEmpty {
-                Text(meeting.resolvedInsights.summary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .help(meeting.resolvedInsights.summary)
-            }
-            HStack(spacing: 6) {
-                Text(meeting.startedAt, format: .dateTime.day().month().hour().minute())
-                if meeting.duration >= 60 {
-                    Text("· \(Int(meeting.duration / 60)) min")
-                }
-                if meeting.enhancedNotes == nil {
-                    Text("· transcript only")
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
-        .padding(.vertical, 2)
+        close()
     }
 }
 
@@ -499,146 +312,36 @@ struct MeetingDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(meeting.title).font(.title2.weight(.semibold))
-                    Text(meeting.startedAt, format: .dateTime.weekday(.wide).day().month().hour().minute())
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let attendees = meeting.attendees, !attendees.isEmpty {
-                        Text("With \(attendees.joined(separator: ", "))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .help(attendees.joined(separator: "\n"))
-                    }
-                }
-                Spacer()
-                // Without this, a saved meeting is a dead end: the only way to
-                // keep recording is a new meeting, and a call that resumes after
-                // a break ends up split across two folders.
-                // Same red dot as the toolbar's New Meeting, so "red dot" reads
-                // consistently as "this starts recording" — the difference being
-                // that this one records into the meeting you are looking at.
-                Button {
-                    Task { await session.resume(meeting) }
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "record.circle.fill")
-                            .foregroundStyle(.red)
-                        Text("Resume")
-                    }
-                }
-                .disabled(session.isBusy)
-                .help("Record more into this meeting and rewrite its notes")
-
-                CopyButton(title: copyLabel, text: copyableText)
-                    .disabled(copyableText.isEmpty)
-
-                // The share sheet reaches Mail, Messages, Notes and any app that
-                // takes text — sharing is always something the user does, never
-                // something Grove does on its own.
-                ShareLink(
-                    item: MeetingStore.notesMarkdown(for: meeting),
-                    subject: Text(meeting.title)
-                ) {
-                    Label("Share", systemImage: "square.and.arrow.up")
-                }
-                .help("Share these notes")
-
-                Menu {
-                    Button("Email Notes…") { emailing = true }
-                        .disabled(!google.isSignedIn)
-                    Button("Rewrite Notes with Claude") {
-                        run("Claude is rewriting the notes…") { await library.rewriteWithClaude(meeting) }
-                    }
-                    .disabled(settings.claudeExecutable == nil || working != nil)
-                    Button("Name the Other Speaker…") {
-                        speakerDraft = meeting.speakerName ?? ""
-                        namingSpeaker = true
-                    }
-                    Button("Export Notes as Markdown…", action: exportNotes)
-                } label: {
-                    Label("More", systemImage: "ellipsis.circle")
-                }
-                .menuStyle(.button)
-                .buttonStyle(.borderless)
-                .fixedSize()
-                Button {
-                    NSWorkspace.shared.selectFile(
-                        nil, inFileViewerRootedAtPath: folder.path)
-                } label: {
-                    Label("Show in Finder", systemImage: "folder")
-                }
-                .help(folder.path)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
-            .padding(.bottom, 10)
-
-            MeetingOverview(meeting: meeting, previous: library.previous(to: meeting))
-                .padding(.horizontal, 20)
-                .padding(.bottom, 10)
-
-            if let conflicts = meeting.noteConflicts, !conflicts.isEmpty {
-                Button {
-                    reviewingConflicts = true
-                } label: {
-                    Label(
-                        conflicts.count == 1
-                            ? "One of your notes doesn't match the transcript — review"
-                            : "\(conflicts.count) of your notes don't match the transcript — review",
-                        systemImage: "exclamationmark.bubble")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.orange)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 8)
-            }
-
-            if let working {
-                Label(working, systemImage: "sparkles")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 8)
-            } else if let workResult {
-                Text(workResult)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 8)
-            }
-
-            if let email = google.lastEmail, email.meetingID == meeting.id {
-                Label(email.result, systemImage: "envelope")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 8)
-            }
-
-            if availableTabs.count > 1 {
-                Picker("", selection: Binding(get: { selectedTab }, set: { tab = $0 })) {
-                    ForEach(availableTabs) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .padding(.horizontal, 20)
-                .padding(.bottom, 10)
-            }
-
-            Divider()
-
             ScrollViewReader { proxy in
                 ScrollView {
-                    content
-                        .padding(20)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 0) {
+                        header
+                            .padding(.bottom, 18)
+
+                        MeetingOverview(meeting: meeting, previous: library.previous(to: meeting))
+                            .padding(.bottom, 14)
+
+                        banners
+
+                        if availableTabs.count > 1 {
+                            PillTabs(
+                                selection: Binding(get: { selectedTab }, set: { tab = $0 }),
+                                options: availableTabs
+                            ) { $0.rawValue }
+                            .padding(.bottom, 18)
+                        }
+
+                        content
+                            .id(selectedTab)
+                            .transition(.opacity)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .animation(Motion.snappy, value: selectedTab)
+                    .frame(maxWidth: Metrics.readingWidth, alignment: .leading)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 44)
+                    .padding(.top, 40)
+                    .padding(.bottom, 48)
                 }
                 .onAppear(perform: consumeSeek)
                 .onChange(of: seek) { _, _ in consumeSeek() }
@@ -649,8 +352,8 @@ struct MeetingDetailView: View {
                 }
             }
         }
-        .sheet(isPresented: $emailing) { EmailNotesSheet(meeting: meeting) }
-        .sheet(isPresented: $reviewingConflicts) {
+        .managedSheet(isPresented: $emailing) { EmailNotesSheet(meeting: meeting) }
+        .managedSheet(isPresented: $reviewingConflicts) {
             NoteConflictsSheet(meeting: meeting) { time in seekInTranscript(to: time) }
         }
         .alert("Who is “Them” in this meeting?", isPresented: $namingSpeaker) {
@@ -665,6 +368,154 @@ struct MeetingDetailView: View {
             tab = nil
             pendingSeek = nil
             highlightedSegment = nil
+        }
+    }
+
+    /// Title, when and who, and the few actions a finished meeting needs.
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                Text(meeting.title)
+                    .font(.display(30))
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 12)
+                actions
+            }
+            HStack(spacing: 6) {
+                DetailChip(
+                    icon: "calendar",
+                    text: meeting.startedAt.formatted(.dateTime.weekday(.abbreviated).day().month().hour().minute()))
+                if meeting.duration >= 60 {
+                    DetailChip(icon: "clock", text: "\(Int(meeting.duration / 60)) min")
+                }
+                if let folder = meeting.folder {
+                    DetailChip(icon: "folder", text: folder)
+                }
+                if let attendees = meeting.attendees, !attendees.isEmpty {
+                    DetailChip(
+                        icon: "person.2",
+                        text: attendees.prefix(3).joined(separator: ", ")
+                            + (attendees.count > 3 ? " +\(attendees.count - 3)" : ""))
+                        .help(attendees.joined(separator: "\n"))
+                }
+            }
+        }
+    }
+
+    private var actions: some View {
+        HStack(spacing: 6) {
+            // Without this, a saved meeting is a dead end: the only way to
+            // keep recording is a new meeting, and a call that resumes after
+            // a break ends up split across two folders.
+            Button {
+                Task { await session.resume(meeting) }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "record.circle.fill")
+                        .foregroundStyle(.red)
+                    Text("Resume")
+                }
+                .font(.callout.weight(.medium))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+            }
+            .buttonStyle(CardButtonStyle(cornerRadius: 999))
+            .disabled(session.isBusy)
+            .help("Record more into this meeting and rewrite its notes")
+
+            CopyButton(title: copyLabel, text: copyableText, iconOnly: true)
+                .disabled(copyableText.isEmpty)
+
+            // The share sheet reaches Mail, Messages, Notes and any app that
+            // takes text — sharing is always something the user does, never
+            // something Grove does on its own.
+            ShareLink(
+                item: MeetingStore.notesMarkdown(for: meeting),
+                subject: Text(meeting.title)
+            ) {
+                Image(systemName: "square.and.arrow.up")
+            }
+            .buttonStyle(CircleIconStyle(size: 30))
+            .help("Share these notes")
+
+            Menu {
+                Button("Email Notes…") { emailing = true }
+                    .disabled(!google.isSignedIn)
+                Button("Rewrite Notes with Claude") {
+                    run("Claude is rewriting the notes…") { await library.rewriteWithClaude(meeting) }
+                }
+                .disabled(settings.claudeExecutable == nil || working != nil)
+                Button("Name the Other Speaker…") {
+                    speakerDraft = meeting.speakerName ?? ""
+                    namingSpeaker = true
+                }
+                Divider()
+                Button("Export Notes as Markdown…", action: exportNotes)
+                Button("Show in Finder") {
+                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder.path)
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .frame(width: 30, height: 30)
+                    .contentShape(Circle())
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("More")
+        }
+    }
+
+    /// Conflicts, work in progress, and email results — one line each.
+    @ViewBuilder
+    private var banners: some View {
+        if let conflicts = meeting.noteConflicts, !conflicts.isEmpty {
+            Button {
+                reviewingConflicts = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.bubble.fill")
+                    Text(
+                        conflicts.count == 1
+                            ? "One of your notes doesn't match the transcript"
+                            : "\(conflicts.count) of your notes don't match the transcript")
+                    Spacer()
+                    Text("Review").fontWeight(.semibold)
+                }
+                .font(.callout)
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .padding(.bottom, 12)
+        }
+
+        if let working {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text(working)
+            }
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .padding(.bottom, 12)
+            .transition(.opacity)
+        } else if let workResult {
+            Text(workResult)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 12)
+                .transition(.opacity)
+        }
+
+        if let email = google.lastEmail, email.meetingID == meeting.id {
+            Label(email.result, systemImage: "envelope")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 12)
         }
     }
 
@@ -806,12 +657,16 @@ struct MeetingDetailView: View {
     /// Runs a slow AI job on this meeting with a status line, and shows its
     /// message afterwards (an error, or "your notes match").
     private func run(_ status: String, _ job: @escaping () async -> String?) {
-        working = status
-        workResult = nil
+        withAnimation(Motion.snappy) {
+            working = status
+            workResult = nil
+        }
         Task {
             let result = await job()
-            working = nil
-            workResult = result
+            withAnimation(Motion.snappy) {
+                working = nil
+                workResult = result
+            }
         }
     }
 
@@ -900,9 +755,26 @@ private struct MeetingOverview: View {
                     }
                 }
             }
-            .padding(12)
+            .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .surface()
         }
+    }
+}
+
+private struct DetailChip: View {
+    let icon: String
+    let text: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+            Text(text).lineLimit(1)
+        }
+        .font(.caption.weight(.medium))
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.groveWash, in: Capsule())
     }
 }

@@ -9,7 +9,7 @@ import SwiftUI
 struct EmailNotesSheet: View {
     let meeting: Meeting
     @Environment(GoogleConnection.self) private var google
-    @Environment(\.dismiss) private var dismiss
+    @CloseSheet private var close
 
     @ViewState private var recipients = ""
     @ViewState private var sending = false
@@ -37,7 +37,8 @@ struct EmailNotesSheet: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") { close() }
+                        .keyboardShortcut(.cancelAction)
                     Button(sending ? "Sending…" : "Send") { Task { await send() } }
                         .keyboardShortcut(.defaultAction)
                         .disabled(sending || addresses.isEmpty)
@@ -47,7 +48,7 @@ struct EmailNotesSheet: View {
                     .foregroundStyle(.secondary)
                 HStack {
                     Spacer()
-                    Button("OK") { dismiss() }.keyboardShortcut(.defaultAction)
+                    Button("OK") { close() }.keyboardShortcut(.defaultAction)
                 }
             }
         }
@@ -75,7 +76,7 @@ struct EmailNotesSheet: View {
             try await google.send(email)
             result = "Sent to \(addresses.joined(separator: ", "))"
             try? await Task.sleep(for: .seconds(1.2))
-            dismiss()
+            close()
         } catch {
             result = error.localizedDescription
         }

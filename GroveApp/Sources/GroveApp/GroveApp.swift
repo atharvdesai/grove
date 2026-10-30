@@ -96,7 +96,7 @@ struct GroveApp: App {
         Window("Grove", id: "main") {
             Group {
                 if settings.hasCompletedOnboarding {
-                    RootView().frame(minWidth: 860, minHeight: 540)
+                    RootView().frame(minWidth: 880, minHeight: 560)
                 } else {
                     OnboardingView()
                 }
@@ -108,7 +108,12 @@ struct GroveApp: App {
             .tint(.grove)
             .preferredColorScheme(settings.appearance.colorScheme)
         }
-        .defaultSize(width: 1040, height: 660)
+        .defaultSize(width: 1120, height: 720)
+        // No title bar: the sidebar and the content card run to the top edge,
+        // with the traffic lights sitting on the canvas. The background still
+        // drags the window, as a title bar would.
+        .windowStyle(.hiddenTitleBar)
+        .windowBackgroundDragBehavior(.enabled)
         .commands {
             CommandGroup(after: .newItem) {
                 Button("New Meeting…") { NotificationCenter.default.post(name: .newMeeting, object: nil) }
@@ -227,77 +232,109 @@ private struct MenuBarContent: View {
     }
 }
 
-/// Library on the left, live meeting or a saved one on the right.
+/// The window: sidebar on the tinted canvas, the current page on a card.
+///
+/// The card-on-canvas shape is borrowed from Arc. It gives every page the same
+/// frame, keeps the sidebar visually quiet without a divider, and leaves the
+/// traffic lights sitting on the canvas rather than over content.
 struct RootView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(MeetingSession.self) private var session
     @Environment(MeetingLibrary.self) private var library
-    @ViewState private var selection: Meeting.ID?
-    @ViewState private var showingNewMeeting = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ViewState private var destination: Destination = .home
+    @ViewState private var sidebarVisible = true
     @ViewState private var transcriptSeek: TranscriptSeek?
+
+    /// The one sheet slot. Every app-level sheet goes through it, so two can
+    /// never be up, or half-up, at once.
     @ViewState private var appSheet: AppSheet?
+    /// What to do once the current sheet has finished closing: usually
+    /// opening the next one. Run from `onDismiss`, never on a timer, because a
+    /// sheet presented while another is still animating out is exactly the
+    /// sheet whose Done button stops working.
+    @ViewState private var afterSheet: (() -> Void)?
+
+    /// `destination`, corrected for things that have gone away: the live
+    /// page once the meeting is written up, a meeting that was deleted.
+    private var shown: Destination {
+        switch destination {
+        case .live where !session.isBusy:
+            return .home
+        case .meeting(let id) where !library.meetings.contains(where: { $0.id == id }):
+            return .home
+        default:
+            return destination
+        }
+    }
 
     var body: some View {
-        NavigationSplitView {
-            LibrarySidebar(selection: $selection)
-                .navigationSplitViewColumnWidth(min: 220, ideal: 260, max: 340)
-        } detail: {
-            if session.isBusy {
-                RecordingView()
-            } else if let meeting = library.meetings.first(where: { $0.id == selection }) {
-                MeetingDetailView(meeting: meeting, seek: $transcriptSeek)
-            } else {
-                HomeView(newMeeting: { showingNewMeeting = true }, selection: $selection)
+        HStack(spacing: 0) {
+            if sidebarVisible {
+                Sidebar(
+                    destination: $destination,
+                    newMeeting: { present(.newMeeting) },
+                    hide: { withAnimation(Motion.respecting(reduceMotion)) { sidebarVisible = false } })
+                    .transition(.move(edge: .leading).combined(with: .opacity))
             }
+
+            ZStack {
+                page
+                    .id(shown)
+                    .transition(
+                        reduceMotion
+                            ? AnyTransition.opacity
+                            : AnyTransition.asymmetric(
+                                insertion: AnyTransition.opacity.combined(with: .offset(y: 6)),
+                                removal: AnyTransition.opacity))
+            }
+            .animation(Motion.respecting(reduceMotion, Motion.gentle), value: shown)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.groveCard)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.06), radius: 10, y: 2)
+            .padding(.top, sidebarVisible ? 8 : 40)
+            .padding([.trailing, .bottom], 8)
+            .padding(.leading, sidebarVisible ? 0 : 8)
         }
-        .toolbar {
-            ToolbarItem(placement: .navigation) {
-                HomeButton(selection: $selection)
-            }
-            ToolbarItemGroup(placement: .primaryAction) {
-                if session.isRecording {
-                    Button {
-                        session.togglePause()
-                    } label: {
-                        Label(
-                            session.isPaused ? "Resume" : "Pause",
-                            systemImage: session.isPaused ? "play.fill" : "pause.fill")
-                    }
-                    .help(session.isPaused ? "Resume recording" : "Pause recording")
+        .overlay(alignment: .topLeading) {
+            if !sidebarVisible {
+                Button {
+                    withAnimation(Motion.respecting(reduceMotion)) { sidebarVisible = true }
+                } label: {
+                    Image(systemName: "sidebar.left")
                 }
-                RecordButton { showingNewMeeting = true }
+                .buttonStyle(CircleIconStyle(size: 26))
+                .foregroundStyle(.secondary)
+                .keyboardShortcut("s", modifiers: [.control, .command])
+                .help("Show the sidebar (⌃⌘S)")
+                // Clear of the traffic lights.
+                .padding(.leading, 78)
+                .padding(.top, 7)
             }
         }
-        .sheet(isPresented: $showingNewMeeting) {
-            NewMeetingSheet()
-        }
-        .sheet(item: $appSheet) { sheet in
-            switch sheet {
-            case .chat: ChatView()
-            case .actionItems: ActionItemsView()
-            case .digest: DigestView()
-            case .palette: CommandPalette()
-            case .people: InsightsView(tab: .people)
-            case .decisions: InsightsView(tab: .decisions)
-            case .waiting: InsightsView(tab: .waiting)
-            case .questions: InsightsView(tab: .questions)
-            case .glossary: InsightsView(tab: .glossary)
-            }
+        .background(Color.groveCanvas)
+        .ignoresSafeArea()
+        .sheet(item: $appSheet, onDismiss: runAfterSheet) { sheet in
+            sheetContent(sheet)
+                .environment(
+                    \.closeSheet,
+                    CloseSheetAction { then in
+                        afterSheet = then
+                        appSheet = nil
+                    })
         }
         .onReceive(NotificationCenter.default.publisher(for: .showAppSheet)) { note in
             guard let raw = note.userInfo?["sheet"] as? String, let sheet = AppSheet(rawValue: raw)
             else { return }
-            // One sheet at a time: close whatever is up, then open the new one.
-            if appSheet != nil {
-                appSheet = nil
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { appSheet = sheet }
-            } else {
-                appSheet = sheet
-            }
+            present(sheet)
         }
         .onContinueUserActivity(CSSearchableItemActionType) { activity in
             guard let id = SpotlightIndex.meetingID(from: activity) else { return }
-            selection = id
+            destination = .meeting(id)
         }
         .alert(
             "Something went wrong",
@@ -312,63 +349,100 @@ struct RootView: View {
         .task { library.reload() }
         .onReceive(NotificationCenter.default.publisher(for: .navigateToMeeting)) { note in
             guard let id = note.userInfo?["meetingID"] as? UUID else { return }
-            selection = id
+            destination = .meeting(id)
             if let time = note.userInfo?["time"] as? TimeInterval {
                 transcriptSeek = TranscriptSeek(meetingID: id, time: time)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .newMeeting)) { _ in
             guard !session.isBusy else { return }
-            showingNewMeeting = true
+            present(.newMeeting)
+        }
+        // However a meeting starts — this window, the menu bar, the call
+        // prompt — the window follows it to the live page.
+        .onChange(of: session.isBusy) { _, busy in
+            if busy { destination = .live }
         }
         .onChange(of: session.lastSaved) { _, saved in
             guard let saved else { return }
             library.reload()
-            selection = saved.id
+            destination = .meeting(saved.id)
         }
+    }
+
+    @ViewBuilder
+    private var page: some View {
+        switch shown {
+        case .live:
+            RecordingView()
+        case .meeting(let id):
+            if let meeting = library.meetings.first(where: { $0.id == id }) {
+                MeetingDetailView(meeting: meeting, seek: $transcriptSeek)
+            }
+        case .ask:
+            ChatView()
+        case .actionItems:
+            ActionItemsView()
+        case .insights(let tab):
+            InsightsView(tab: tab)
+        case .home:
+            HomeView(newMeeting: { present(.newMeeting) }, destination: $destination)
+        }
+    }
+
+    @ViewBuilder
+    private func sheetContent(_ sheet: AppSheet) -> some View {
+        switch sheet {
+        case .newMeeting: NewMeetingSheet()
+        case .digest: DigestView()
+        case .palette: CommandPalette()
+        // Pages, routed in `present` and never shown as sheets.
+        case .chat, .actionItems, .people, .decisions, .waiting, .questions, .glossary:
+            EmptyView()
+        }
+    }
+
+    /// Shows a sheet — first closing whatever is up and waiting for it to go
+    /// — or, for the cases that are pages, navigates there.
+    private func present(_ sheet: AppSheet) {
+        if let page = sheet.page {
+            if appSheet == nil {
+                destination = page
+            } else {
+                afterSheet = { destination = page }
+                appSheet = nil
+            }
+            return
+        }
+        guard appSheet != sheet else { return }
+        if appSheet == nil {
+            appSheet = sheet
+        } else {
+            afterSheet = { appSheet = sheet }
+            appSheet = nil
+        }
+    }
+
+    private func runAfterSheet() {
+        guard let next = afterSheet else { return }
+        afterSheet = nil
+        DispatchQueue.main.async(execute: next)
     }
 }
 
-/// Toolbar control: start a new meeting, or stop the running one.
-///
-/// It says "New Meeting" rather than "Record" because of where it sits. Above an
-/// open meeting, a button labelled "Record" reads as *record into this meeting*,
-/// and it does the opposite — it starts a fresh one. Naming the action removes
-/// the ambiguity that position creates. Recording into the meeting you are
-/// looking at is `Resume`, which lives on the meeting itself.
-///
-/// Prominence comes from the red dot, not from a filled blue slab, which was too
-/// loud for a toolbar sitting above quiet text. Stop earns the solid treatment:
-/// it is momentary, destructive of the recording, and should be hard to miss.
-struct RecordButton: View {
-    @Environment(MeetingSession.self) private var session
-    @Environment(MeetingLibrary.self) private var library
-    let newMeeting: () -> Void
-
-    var body: some View {
-        if session.isRecording {
-            Button {
-                Task {
-                    await session.stop()
-                    library.reload()
-                }
-            } label: {
-                Label("Stop", systemImage: "stop.fill")
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.red)
-            .help("Stop and write up the meeting")
-        } else {
-            Button(action: newMeeting) {
-                HStack(spacing: 6) {
-                    Image(systemName: "record.circle.fill")
-                        .foregroundStyle(.red)
-                    Text("New Meeting")
-                }
-            }
-            .buttonStyle(.bordered)
-            .disabled(session.isBusy)
-            .help("Name a meeting and start recording (⌘N)")
+extension AppSheet {
+    /// The page this opens, for the destinations that live in the window
+    /// rather than in a sheet.
+    var page: Destination? {
+        switch self {
+        case .chat: return .ask
+        case .actionItems: return .actionItems
+        case .people: return .insights(.people)
+        case .decisions: return .insights(.decisions)
+        case .waiting: return .insights(.waiting)
+        case .questions: return .insights(.questions)
+        case .glossary: return .insights(.glossary)
+        case .newMeeting, .digest, .palette: return nil
         }
     }
 }
@@ -382,7 +456,7 @@ private struct NewMeetingSheet: View {
     @Environment(AppSettings.self) private var settings
     @Environment(MeetingSession.self) private var session
     @Environment(MeetingLibrary.self) private var library
-    @Environment(\.dismiss) private var dismiss
+    @CloseSheet private var close
 
     @ViewState private var title = ""
     @ViewState private var templateID = ""
@@ -399,26 +473,34 @@ private struct NewMeetingSheet: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("New Meeting").font(.headline)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                IconTile(systemName: "record.circle.fill", size: 34, tint: .red)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("New Meeting").font(.headline)
+                    Text("Everything here is optional — Return starts recording.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.bottom, 16)
+
+            TextField(
+                "Title", text: $title,
+                prompt: Text(settings.autoOrganize ? "Named for you when it ends" : "Meeting title"))
+                .textFieldStyle(.plain)
+                .font(.title3.weight(.medium))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .surface(cornerRadius: Metrics.controlRadius)
+                .focused($titleFocused)
+                .onSubmit(start)
+                .padding(.bottom, 14)
 
             Form {
-                TextField(
-                    "Title", text: $title,
-                    prompt: Text(settings.autoOrganize ? "Named for you when it ends" : "Optional"))
-                    .focused($titleFocused)
-                    .onSubmit(start)
-
                 Picker("Template", selection: $templateID) {
                     ForEach(library.templates) { Text($0.name).tag($0.id) }
                 }
-
-                Toggle("In person — a lecture or a room, not a call", isOn: $inPerson)
-                    .onChange(of: inPerson) { _, isOn in
-                        if isOn, templateID == NoteTemplate.general.id {
-                            templateID = NoteTemplate.lecture.id
-                        }
-                    }
 
                 Picker("Folder", selection: $folder) {
                     if settings.autoOrganize {
@@ -429,18 +511,30 @@ private struct NewMeetingSheet: View {
                         Text(name).tag(FolderChoice.named(name))
                     }
                 }
+
+                Toggle("In person — a lecture or a room, not a call", isOn: $inPerson)
+                    .onChange(of: inPerson) { _, isOn in
+                        if isOn, templateID == NoteTemplate.general.id {
+                            templateID = NoteTemplate.lecture.id
+                        }
+                    }
             }
             .formStyle(.columns)
 
             HStack {
                 Spacer()
-                Button("Cancel") { dismiss() }
-                Button("Start Recording", action: start)
-                    .keyboardShortcut(.defaultAction)
+                Button("Cancel") { close() }
+                    .keyboardShortcut(.cancelAction)
+                Button(action: start) {
+                    Label("Start Recording", systemImage: "record.circle")
+                }
+                .buttonStyle(ProminentCapsuleStyle())
+                .keyboardShortcut(.defaultAction)
             }
+            .padding(.top, 20)
         }
-        .padding(20)
-        .frame(width: 420)
+        .padding(22)
+        .frame(width: 440)
         .onAppear {
             templateID = settings.defaultTemplateID
             if !settings.autoOrganize { folder = .topLevel }
@@ -463,21 +557,8 @@ private struct NewMeetingSheet: View {
             session.folder = name
             session.folderIsAutomatic = false
         }
-        dismiss()
-        Task { await session.start() }
-    }
-}
-
-/// Returns to the home screen by clearing the selection — a "home" affordance,
-/// since a sidebar list has no natural way back to nothing-selected.
-struct HomeButton: View {
-    @Binding var selection: Meeting.ID?
-
-    var body: some View {
-        Button { selection = nil } label: {
-            Label("Home", systemImage: "house")
-        }
-        .disabled(selection == nil)
-        .help("Back to the home screen")
+        // Recording starts once the sheet is gone, so the recording screen
+        // animates in over a settled window rather than under a closing sheet.
+        close { Task { await session.start() } }
     }
 }

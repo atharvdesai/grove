@@ -8,6 +8,8 @@ import SwiftUI
 struct CopyButton: View {
     let title: String
     let text: String
+    /// A round icon button, with the title as its tooltip.
+    var iconOnly = false
 
     @ViewState private var copied = false
 
@@ -22,11 +24,32 @@ struct CopyButton: View {
                 copied = false
             }
         } label: {
-            Label(
-                copied ? "Copied" : title,
-                systemImage: copied ? "checkmark" : "doc.on.doc")
+            if iconOnly {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                    .contentTransition(.symbolEffect(.replace))
+            } else {
+                Label(
+                    copied ? "Copied" : title,
+                    systemImage: copied ? "checkmark" : "doc.on.doc")
+                    .contentTransition(.symbolEffect(.replace))
+            }
         }
-        .animation(.easeInOut(duration: 0.15), value: copied)
-        .help("Copy to the clipboard")
+        .modifier(CopyButtonChrome(iconOnly: iconOnly, tint: copied ? .grove : nil))
+        .animation(Motion.snappy, value: copied)
+        .help(copied ? "Copied" : iconOnly ? title : "Copy to the clipboard")
+    }
+}
+
+private struct CopyButtonChrome: ViewModifier {
+    let iconOnly: Bool
+    let tint: Color?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if iconOnly {
+            content.buttonStyle(CircleIconStyle(tint: tint, size: 30))
+        } else {
+            content
+        }
     }
 }

@@ -1,17 +1,20 @@
 import GroveKit
 import SwiftUI
 
-/// What you see when no meeting is open.
+/// What you see when you open Grove.
 ///
-/// Replaces a bare "No meeting selected", which told the user nothing and
-/// offered them nothing. A home screen has three jobs here: say what to press,
-/// show that the machine is actually ready to record, and get back to recent
-/// work in one click.
+/// Ordered by what you are most likely to want in the next minute:
 ///
-/// The readiness row matters more than it looks. Every failure in this pipeline
-/// is silent — a denied permission produces a transcript missing one side and no
-/// error — so surfacing it before a meeting is the difference between noticing
-/// now and noticing afterwards.
+/// 1. **Now** — a call on your calendar that is happening, with one click to
+///    take notes. That is the moment people open a meeting app (Granola leads
+///    with it for the same reason).
+/// 2. **Ask** — a composer, because the next most common reason to open your
+///    meeting notes is to look something up.
+/// 3. **Recent** — the last few meetings with what each came to, so getting
+///    back to work is one click.
+///
+/// Problems that would quietly ruin a recording — a missing permission — jump
+/// the queue, because noticing them now beats noticing them afterwards.
 struct HomeView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(MeetingLibrary.self) private var library
@@ -19,72 +22,61 @@ struct HomeView: View {
     @Environment(GoogleConnection.self) private var google
 
     let newMeeting: () -> Void
-    @Binding var selection: Meeting.ID?
+    @Binding var destination: Destination
 
     @ViewState private var checks: [SystemCheck] = []
+    @ViewState private var appeared = false
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 32) {
                 header
+                    .reveal(appeared, order: 0)
 
                 if checks.contains(where: { !$0.isReady }) {
-                    ReadinessRow(checks: checks) { checks = await Diagnostics.all() }
+                    VStack(alignment: .leading, spacing: 10) {
+                        SectionLabel("Before your next meeting")
+                        PermissionsList(checks: checks.filter { !$0.isReady }) {
+                            checks = await Diagnostics.all()
+                        }
+                    }
+                    .reveal(appeared, order: 1)
                 }
 
                 let upcoming = google.upcomingToday
                 if !upcoming.isEmpty {
                     ComingUp(events: Array(upcoming.prefix(4)))
+                        .reveal(appeared, order: 1)
                 }
 
-                if !library.meetings.isEmpty {
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: 140), spacing: 12)], spacing: 12
-                    ) {
-                        ActionCard(
-                            icon: "bubble.left.and.bubble.right", title: "Ask",
-                            detail: "Anything across your meetings"
-                        ) { AppSheet.chat.show() }
-                        ActionCard(
-                            icon: "checklist", title: "Action items",
-                            detail: openItemsLabel
-                        ) { AppSheet.actionItems.show() }
-                        ActionCard(
-                            icon: "hourglass", title: "Waiting on",
-                            detail: waitingLabel
-                        ) { AppSheet.waiting.show() }
-                        ActionCard(
-                            icon: "person.2", title: "People",
-                            detail: "Who you meet and what's owed"
-                        ) { AppSheet.people.show() }
-                        ActionCard(
-                            icon: "checkmark.seal", title: "Decisions",
-                            detail: "Every decision, current first"
-                        ) { AppSheet.decisions.show() }
-                        ActionCard(
-                            icon: "calendar", title: "This week",
-                            detail: "Decisions and what changed"
-                        ) { AppSheet.digest.show() }
-                        ActionCard(
-                            icon: "square.and.pencil", title: "Quick notes",
-                            detail: "\(QuickNotesShortcut.label) from any app"
-                        ) { NotificationCenter.default.post(name: .toggleQuickNotes, object: nil) }
-                    }
+                AskComposer { question in
+                    AskHandoff.pending = question
+                    destination = .ask
+                }
+                .reveal(appeared, order: 2)
 
-                    RecentMeetings(
-                        meetings: Array(library.meetings.prefix(5)), selection: $selection)
+                if library.meetings.isEmpty {
+                    FirstMeeting(newMeeting: newMeeting)
+                        .reveal(appeared, order: 3)
                 } else {
-                    EmptyLibrary(newMeeting: newMeeting)
+                    attention
+                        .reveal(appeared, order: 3)
+                    RecentMeetings(meetings: Array(library.meetings.prefix(6)), destination: $destination)
+                        .reveal(appeared, order: 4)
                 }
 
-                Spacer(minLength: 20)
+                Spacer(minLength: 24)
             }
-            .frame(maxWidth: 680)
+            .frame(maxWidth: Metrics.readingWidth)
             .frame(maxWidth: .infinity)
-            .padding(.horizontal, 32)
-            .padding(.top, 28)
+            .padding(.horizontal, 40)
+            .padding(.top, 44)
         }
-        .task { checks = await Diagnostics.all() }
+        .scrollIndicators(.automatic)
+        .task {
+            checks = await Diagnostics.all()
+            appeared = true
+        }
         // Coming back from System Settings should reflect what changed there.
         .onReceive(
             NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
@@ -94,30 +86,28 @@ struct HomeView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 16) {
-            GroveLogo(size: 52)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(greeting)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                Text(Date(), format: .dateTime.weekday(.wide).day().month(.wide))
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button(action: newMeeting) {
-                Label("New Meeting", systemImage: "record.circle.fill")
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(session.isBusy)
-            .keyboardShortcut("n")
-            .help("Name a meeting and start recording (⌘N)")
+        VStack(alignment: .leading, spacing: 6) {
+            Text(Date(), format: .dateTime.weekday(.wide).day().month(.wide))
+                .font(.callout.weight(.medium))
+                .foregroundStyle(.secondary)
+            Text(greeting)
+                .font(.display(34))
+        }
+    }
+
+    /// What is waiting on you, as quiet links rather than a wall of tiles.
+    private var attention: some View {
+        HStack(spacing: 10) {
+            AttentionChip(icon: "checklist", text: openItemsLabel) { destination = .actionItems }
+            AttentionChip(icon: "hourglass", text: waitingLabel) { destination = .insights(.waiting) }
+            AttentionChip(icon: "calendar", text: "This week") { AppSheet.digest.show() }
+            Spacer(minLength: 0)
         }
     }
 
     private var greeting: String {
         let hour = Calendar.current.component(.hour, from: Date())
-        let part = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
+        let part = hour < 5 ? "Good evening" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
         let name = settings.userName.trimmed.isEmpty
             ? (google.account?.firstName ?? "") : settings.userName.trimmed
         return name.isEmpty ? part : "\(part), \(name)"
@@ -130,194 +120,284 @@ struct HomeView: View {
 
     private var openItemsLabel: String {
         let open = ActionItems.extract(from: library.meetings).filter { !$0.isDone }.count
-        return open == 0 ? "All caught up" : "\(open) open"
+        return open == 0 ? "No open action items" : "\(open) open action \(open == 1 ? "item" : "items")"
     }
 }
 
-/// Today's remaining calendar events, so the next meeting is one glance away.
-private struct ComingUp: View {
-    let events: [CalendarEvent]
+/// Carries a question typed on Home over to the Ask page, which picks it up
+/// when it appears. One slot, read once.
+@MainActor
+enum AskHandoff {
+    static var pending: String?
+}
+
+private extension View {
+    /// Fades and lifts sections in, one after another, when Home first shows.
+    func reveal(_ shown: Bool, order: Int) -> some View {
+        modifier(Reveal(shown: shown, order: order))
+    }
+}
+
+private struct Reveal: ViewModifier {
+    let shown: Bool
+    let order: Int
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown || reduceMotion ? 0 : 10)
+            .animation(
+                reduceMotion ? nil : Motion.gentle.delay(Double(order) * 0.05),
+                value: shown)
+    }
+}
+
+/// A Claude-style composer that hands off to the Ask page.
+private struct AskComposer: View {
+    let ask: (String) -> Void
+    @ViewState private var text = ""
+    @FocusState private var focused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            SectionLabel("COMING UP")
-            VStack(spacing: 0) {
-                ForEach(Array(events.enumerated()), id: \.offset) { index, event in
-                    HStack(spacing: 12) {
-                        RoundedRectangle(cornerRadius: 2)
-                            .fill(event.start <= Date() ? Color.red : Color.grove)
-                            .frame(width: 4, height: 30)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(event.title.isEmpty ? "Untitled event" : event.title)
-                                .lineLimit(1)
-                            Text(detail(for: event))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                        Spacer()
-                        if event.hasVideoLink {
-                            Image(systemName: "video")
-                                .foregroundStyle(.secondary)
-                                .help("Has a call link — Grove will offer to take notes when it starts")
-                        }
-                    }
-                    .padding(.vertical, 9)
-                    .padding(.horizontal, 12)
-                    if index < events.count - 1 { Divider().padding(.leading, 28) }
+        HStack(spacing: 10) {
+            Image(systemName: "sparkle")
+                .foregroundStyle(Color.grove)
+            TextField("Ask anything about your meetings…", text: $text)
+                .textFieldStyle(.plain)
+                .font(.system(size: 15))
+                .focused($focused)
+                .onSubmit(submit)
+            Button(action: submit) {
+                Image(systemName: "arrow.up")
+            }
+            .buttonStyle(CircleIconStyle(tint: .grove, size: 28))
+            .disabled(text.trimmed.isEmpty)
+            .opacity(text.trimmed.isEmpty ? 0.4 : 1)
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, 8)
+        .padding(.vertical, 9)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.groveCard))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(focused ? Color.grove.opacity(0.55) : Color.primary.opacity(0.1), lineWidth: 1))
+        .shadow(color: .black.opacity(focused ? 0.08 : 0.04), radius: focused ? 12 : 6, y: 2)
+        .animation(Motion.hover, value: focused)
+    }
+
+    private func submit() {
+        let question = text.trimmed
+        guard !question.isEmpty else { return }
+        ask(question)
+    }
+}
+
+/// Today's remaining calendar events. A call that is on now gets a button to
+/// start taking notes in it, named after the event.
+private struct ComingUp: View {
+    let events: [CalendarEvent]
+    @Environment(MeetingSession.self) private var session
+    @Environment(AppSettings.self) private var settings
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionLabel("Coming up")
+            VStack(spacing: 8) {
+                ForEach(Array(events.enumerated()), id: \.offset) { _, event in
+                    row(event)
                 }
             }
-            .background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
         }
     }
 
-    private func detail(for event: CalendarEvent) -> String {
-        let time = event.start <= Date()
-            ? "Now, until \(event.end.formatted(date: .omitted, time: .shortened))"
-            : event.start.formatted(date: .omitted, time: .shortened)
-        guard !event.attendees.isEmpty else { return time }
-        let people = event.attendees.prefix(3).joined(separator: ", ")
-        let more = event.attendees.count > 3 ? " +\(event.attendees.count - 3)" : ""
-        return "\(time) · \(people)\(more)"
-    }
-}
+    private func row(_ event: CalendarEvent) -> some View {
+        let isNow = event.start <= Date()
+        return HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(event.start, format: .dateTime.hour().minute())
+                    .font(.callout.weight(.semibold).monospacedDigit())
+                Text(event.end, format: .dateTime.hour().minute())
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 58, alignment: .leading)
 
-private struct ActionCard: View {
-    let icon: String
-    let title: String
-    let detail: String
-    let action: () -> Void
-    @ViewState private var hovering = false
+            RoundedRectangle(cornerRadius: 2)
+                .fill(isNow ? Color.red : Color.grove)
+                .frame(width: 3, height: 34)
 
-    var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 8) {
-                Image(systemName: icon)
-                    .font(.title2)
-                    .foregroundStyle(Color.grove)
-                Text(title).font(.headline)
-                Text(detail)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(event.title.isEmpty ? "Untitled event" : event.title)
+                    .font(.system(size: 14, weight: .medium))
+                    .lineLimit(1)
+                Text(detail(for: event))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(.quaternary.opacity(hovering ? 0.45 : 0.2)))
-            .contentShape(Rectangle())
+            Spacer()
+            if isNow {
+                Button {
+                    session.title = event.title
+                    session.templateID = settings.defaultTemplateID
+                    Task { await session.start() }
+                } label: {
+                    Label("Take Notes", systemImage: "record.circle")
+                }
+                .buttonStyle(ProminentCapsuleStyle(tint: .red))
+                .disabled(session.isBusy)
+            } else if event.hasVideoLink {
+                Image(systemName: "video")
+                    .foregroundStyle(.secondary)
+                    .help("Has a call link — Grove will offer to take notes when it starts")
+            }
         }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .surface()
+    }
+
+    private func detail(for event: CalendarEvent) -> String {
+        let when = event.start <= Date() ? "Happening now" : event.start.formatted(.relative(presentation: .named))
+        guard !event.attendees.isEmpty else { return when }
+        let people = event.attendees.prefix(3).joined(separator: ", ")
+        let more = event.attendees.count > 3 ? " +\(event.attendees.count - 3)" : ""
+        return "\(when) · \(people)\(more)"
     }
 }
 
-private struct EmptyLibrary: View {
+private struct AttentionChip: View {
+    let icon: String
+    let text: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .foregroundStyle(Color.grove)
+                Text(text)
+                    .lineLimit(1)
+            }
+            .font(.callout)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+        }
+        .buttonStyle(CardButtonStyle(cornerRadius: 999))
+    }
+}
+
+/// The empty state, as three steps rather than a shrug.
+private struct FirstMeeting: View {
     let newMeeting: () -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "waveform")
-                .font(.system(size: 36))
-                .foregroundStyle(Color.grove)
-            Text("Your first meeting goes here").font(.headline)
-            Text(
-                "Join a call and Grove will offer to take notes, or press New Meeting. "
-                    + "Press \(QuickNotesShortcut.label) any time to jot something down.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 380)
-            Button("New Meeting", action: newMeeting).buttonStyle(.bordered)
+        VStack(alignment: .leading, spacing: 16) {
+            SectionLabel("Your first meeting")
+            VStack(alignment: .leading, spacing: 14) {
+                Step(number: 1, title: "Join a call, or press New Meeting",
+                     detail: "Grove notices Zoom, Meet, Teams and FaceTime and offers to take notes.")
+                Step(number: 2, title: "Jot down whatever matters to you",
+                     detail: "Fragments are fine. Grove hears the rest — nothing joins the call.")
+                Step(number: 3, title: "Stop, and get notes worth keeping",
+                     detail: "Your headings, filled in from what was actually said, with every line checkable.")
+            }
+            Button(action: newMeeting) {
+                Label("New Meeting", systemImage: "plus")
+            }
+            .buttonStyle(ProminentCapsuleStyle())
+            .padding(.top, 4)
         }
-        .frame(maxWidth: .infinity)
-        .padding(32)
-        .background(.quaternary.opacity(0.15), in: RoundedRectangle(cornerRadius: 16))
+        .padding(22)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .surface(cornerRadius: 16)
     }
-}
 
-private struct SectionLabel: View {
-    let text: String
-    init(_ text: String) { self.text = text }
+    private struct Step: View {
+        let number: Int
+        let title: String
+        let detail: String
 
-    var body: some View {
-        Text(text)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
-    }
-}
-
-private struct ReadinessRow: View {
-    let checks: [SystemCheck]
-    let refresh: () async -> Void
-
-    private var problems: [SystemCheck] { checks.filter { !$0.isReady } }
-
-    var body: some View {
-        if problems.isEmpty {
-            Label("Ready to record", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-                .font(.callout.weight(.medium))
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
-        } else {
-            // Each problem is named individually and carries its own fix, because
-            // which one is missing changes what the user loses — and because the
-            // previous version pointed at Grove' Settings, which had nothing to
-            // say about permissions. A warning must lead somewhere that helps.
-            PermissionsList(checks: problems, refresh: refresh)
+        var body: some View {
+            HStack(alignment: .top, spacing: 12) {
+                Text("\(number)")
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(Color.grove)
+                    .frame(width: 26, height: 26)
+                    .background(Color.grove.opacity(0.13), in: Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title).font(.system(size: 14, weight: .medium))
+                    Text(detail)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
     }
 }
 
 private struct RecentMeetings: View {
     let meetings: [Meeting]
-    @Binding var selection: Meeting.ID?
+    @Binding var destination: Destination
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SectionLabel("RECENT")
-
-            VStack(spacing: 0) {
+            SectionLabel("Recent")
+            VStack(spacing: 2) {
                 ForEach(meetings) { meeting in
                     Button {
-                        selection = meeting.id
+                        destination = .meeting(meeting.id)
                     } label: {
-                        HStack(spacing: 10) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(meeting.title).lineLimit(1)
-                                HStack(spacing: 6) {
-                                    Text(
-                                        meeting.startedAt,
-                                        format: .dateTime.day().month().hour().minute())
+                        HStack(alignment: .top, spacing: 14) {
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(DayLabel.label(for: meeting.startedAt))
+                                    .font(.caption.weight(.medium))
+                                    .foregroundStyle(.secondary)
+                                Text(meeting.startedAt, format: .dateTime.hour().minute())
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .frame(width: 76, alignment: .leading)
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(meeting.title)
+                                    .font(.system(size: 14, weight: .medium))
+                                    .lineLimit(1)
+                                let summary = meeting.resolvedInsights.summary
+                                if !summary.isEmpty {
+                                    Text(summary)
+                                        .font(.callout)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(2)
+                                        .multilineTextAlignment(.leading)
+                                }
+                                HStack(spacing: 8) {
+                                    if meeting.duration >= 60 {
+                                        Label("\(Int(meeting.duration / 60)) min", systemImage: "clock")
+                                    }
                                     if let folder = meeting.folder {
                                         Label(folder, systemImage: "folder")
                                     }
                                     if meeting.enhancedNotes == nil {
-                                        Text("· transcript only")
+                                        Label("Transcript only", systemImage: "text.quote")
                                     }
                                 }
                                 .font(.caption)
-                                .foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption)
                                 .foregroundStyle(.tertiary)
+                                .labelStyle(.titleAndIcon)
+                            }
+                            Spacer(minLength: 0)
                         }
-                        .padding(.vertical, 9)
                         .padding(.horizontal, 12)
-                        .contentShape(Rectangle())
+                        .padding(.vertical, 10)
                     }
-                    .buttonStyle(.plain)
-
-                    if meeting.id != meetings.last?.id { Divider().padding(.leading, 12) }
+                    .buttonStyle(RowButtonStyle())
                 }
             }
-            .background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 12))
         }
     }
 }

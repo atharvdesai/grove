@@ -16,26 +16,34 @@ struct NotesText: View {
     var onSeek: ((TimeInterval) -> Void)? = nil
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+        VStack(alignment: .leading, spacing: 9) {
+            ForEach(Array(blocks.enumerated()), id: \.offset) { index, block in
                 switch block {
                 case .heading(let level, let text):
                     Text(inline(text))
-                        .font(level <= 1 ? .title2.bold() : level == 2 ? .title3.bold() : .headline)
-                        .padding(.top, 8)
+                        .font(
+                            level <= 1
+                                ? .display(24)
+                                : level == 2 ? .system(size: 18, weight: .semibold) : .system(size: 15, weight: .semibold))
+                        .padding(.top, index == 0 ? 0 : 14)
                 case .bullet(let text):
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("•").foregroundStyle(.secondary)
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Circle()
+                            .fill(Color.secondary.opacity(0.6))
+                            .frame(width: 4.5, height: 4.5)
+                            .alignmentGuide(.firstTextBaseline) { $0[.bottom] + 4 }
                         linkedLine(text)
                     }
+                    .padding(.leading, 2)
                 case .paragraph(let text):
                     linkedLine(text)
                 }
             }
         }
-        .font(.system(size: 14))
+        .font(.system(size: 15))
+        .lineSpacing(3)
         .textSelection(.enabled)
-        .frame(maxWidth: 720, alignment: .leading)
+        .frame(maxWidth: Metrics.readingWidth, alignment: .leading)
     }
 
     private enum Block {
@@ -69,11 +77,16 @@ struct NotesText: View {
         if let onSeek, let (body, time) = TimestampLinker.trailingClock(in: text) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(inline(body)).fixedSize(horizontal: false, vertical: true)
-                Button(TimestampLinker.clockString(time)) { onSeek(time) }
-                    .buttonStyle(.plain)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(Color.grove)
-                    .help("Jump to this moment in the transcript")
+                Button { onSeek(time) } label: {
+                    Text(TimestampLinker.clockString(time))
+                        .font(.caption2.weight(.medium).monospacedDigit())
+                        .foregroundStyle(Color.grove)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1)
+                        .background(Color.grove.opacity(0.1), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .help("Jump to this moment in the transcript")
             }
         } else {
             Text(inline(text)).fixedSize(horizontal: false, vertical: true)
