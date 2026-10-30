@@ -191,11 +191,18 @@ only if it improves the phase 0 measurements.
 **Order:** 0 → 1 → 2, with 3 woven in as measurements arrive. Phase 4 is
 independent and can run in parallel at any point.
 
-## 6. Decisions needed
+## 6. Decisions
 
-1. **Recordings:** keep "Them" audio only until processing finishes (the
-   default), or also offer "keep recordings" for replay?
-2. **Size limit for the prompt:** 6 other attendees, or another number?
+1. **Recordings — decided:** offer "Keep recordings". It is off by default,
+   with automatic deletion after 30 days when on. Recordings are saved
+   compressed (AAC, about 15–30 MB per hour), not as raw audio (about 1 GB per
+   hour). Settings shows the total space used, with a "Delete all recordings"
+   button.
+2. **Size limit for the prompt — decided:** 6 other attendees, adjustable once
+   phase 0 measurements say whether it should move.
+
+Still open:
+
 3. **Cloud AI:** allowed as opt-in, given CONTRIBUTING.md currently promises
    "no network calls for AI"? If yes, update that file to say "on-device by
    default; cloud only when you choose it".
