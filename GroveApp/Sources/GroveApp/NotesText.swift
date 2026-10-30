@@ -72,7 +72,7 @@ struct NotesText: View {
                 Button(TimestampLinker.clockString(time)) { onSeek(time) }
                     .buttonStyle(.plain)
                     .font(.caption.monospacedDigit())
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.grove)
                     .help("Jump to this moment in the transcript")
             }
         } else {

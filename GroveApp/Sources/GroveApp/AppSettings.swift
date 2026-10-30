@@ -59,6 +59,8 @@ final class AppSettings {
         static let autoOrganize = "autoOrganizeMeetings"
         static let setUpOpenAtLogin = "hasSetUpOpenAtLogin"
         static let useCalendar = "useCalendar"
+        static let emailSummaries = "emailSummaries"
+        static let userName = "userName"
     }
 
     private let defaults: UserDefaults
@@ -112,6 +114,18 @@ final class AppSettings {
         didSet { defaults.set(useCalendar, forKey: Key.useCalendar) }
     }
 
+    /// Email the written-up notes to yourself when a meeting ends. Only does
+    /// anything once a Google account is signed in.
+    var emailSummaries: Bool {
+        didSet { defaults.set(emailSummaries, forKey: Key.emailSummaries) }
+    }
+
+    /// For the home screen's greeting. Taken from the Google account when there
+    /// is one, otherwise whatever was typed during onboarding.
+    var userName: String {
+        didSet { defaults.set(userName, forKey: Key.userName) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.appearance =
@@ -129,6 +143,8 @@ final class AppSettings {
             ?? .ask
         self.autoOrganize = defaults.object(forKey: Key.autoOrganize) as? Bool ?? true
         self.useCalendar = defaults.bool(forKey: Key.useCalendar)
+        self.emailSummaries = defaults.object(forKey: Key.emailSummaries) as? Bool ?? true
+        self.userName = defaults.string(forKey: Key.userName) ?? ""
         if hasCompletedOnboarding { setUpOpenAtLoginOnce() }
     }
 

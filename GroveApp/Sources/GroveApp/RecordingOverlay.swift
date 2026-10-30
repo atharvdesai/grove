@@ -27,6 +27,15 @@ struct RecordingOverlayView: View {
             Divider().frame(height: 16)
 
             Button {
+                NotificationCenter.default.post(name: .toggleQuickNotes, object: nil)
+            } label: {
+                Image(systemName: "square.and.pencil")
+                    .frame(width: 22, height: 22)
+            }
+            .buttonStyle(.plain)
+            .help("Quick notes (\(QuickNotesShortcut.label))")
+
+            Button {
                 session.togglePause()
             } label: {
                 Image(systemName: session.isPaused ? "play.fill" : "pause.fill")

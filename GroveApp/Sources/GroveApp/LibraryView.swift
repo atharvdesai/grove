@@ -365,6 +365,8 @@ struct MeetingDetailView: View {
     @ViewState private var highlightedSegment: TranscriptSegment.ID?
     @ViewState private var namingSpeaker = false
     @ViewState private var speakerDraft = ""
+    @ViewState private var emailing = false
+    @Environment(GoogleConnection.self) private var google
 
     enum Tab: String, CaseIterable, Identifiable {
         case notes = "Notes"
@@ -423,6 +425,8 @@ struct MeetingDetailView: View {
                 .help("Share these notes")
 
                 Menu {
+                    Button("Email Notes…") { emailing = true }
+                        .disabled(!google.isSignedIn)
                     Button("Name the Other Speaker…") {
                         speakerDraft = meeting.speakerName ?? ""
                         namingSpeaker = true
@@ -445,6 +449,15 @@ struct MeetingDetailView: View {
             .padding(.horizontal, 20)
             .padding(.top, 16)
             .padding(.bottom, 10)
+
+            if let email = google.lastEmail, email.meetingID == meeting.id {
+                Label(email.result, systemImage: "envelope")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 8)
+            }
 
             if availableTabs.count > 1 {
                 Picker("", selection: Binding(get: { selectedTab }, set: { tab = $0 })) {
@@ -473,6 +486,7 @@ struct MeetingDetailView: View {
                 }
             }
         }
+        .sheet(isPresented: $emailing) { EmailNotesSheet(meeting: meeting) }
         .alert("Who is “Them” in this meeting?", isPresented: $namingSpeaker) {
             TextField("Name", text: $speakerDraft)
             Button("Cancel", role: .cancel) {}
@@ -555,7 +569,7 @@ struct MeetingDetailView: View {
                         HStack(spacing: 6) {
                             Text(meeting.displayName(for: segment.speaker))
                                 .font(.caption.weight(.semibold))
-                                .foregroundStyle(segment.speaker == .me ? Color.accentColor : .secondary)
+                                .foregroundStyle(segment.speaker == .me ? Color.grove : .secondary)
                             Text(segment.start.clockString)
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(.tertiary)
@@ -570,7 +584,7 @@ struct MeetingDetailView: View {
                         RoundedRectangle(cornerRadius: 6)
                             .fill(
                                 highlightedSegment == segment.id
-                                    ? Color.accentColor.opacity(0.18) : .clear))
+                                    ? Color.grove.opacity(0.18) : .clear))
                     .id(segment.id)
                 }
             }

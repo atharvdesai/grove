@@ -5,6 +5,8 @@ import SwiftUI
 struct SettingsView: View {
     var body: some View {
         TabView {
+            AccountSettings()
+                .tabItem { Label("Account", systemImage: "person.crop.circle") }
             GeneralSettings()
                 .tabItem { Label("General", systemImage: "gearshape") }
             PermissionsSettings()
@@ -16,6 +18,63 @@ struct SettingsView: View {
             AboutSettings()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
+        .frame(width: 520)
+    }
+}
+
+private struct AccountSettings: View {
+    @Environment(AppSettings.self) private var settings
+    @Environment(GoogleConnection.self) private var google
+
+    var body: some View {
+        @Bindable var settings = settings
+
+        Form {
+            Section {
+                if let account = google.account {
+                    LabeledContent("Google") {
+                        HStack {
+                            VStack(alignment: .trailing) {
+                                Text(account.name ?? account.email)
+                                Text(account.email).font(.caption).foregroundStyle(.secondary)
+                            }
+                            Button("Sign Out") { google.signOut() }
+                        }
+                    }
+                } else {
+                    LabeledContent("Google") {
+                        Button(google.isSigningIn ? "Waiting for Google…" : "Sign in with Google") {
+                            Task { await google.signIn() }
+                        }
+                        .disabled(!google.isConfigured || google.isSigningIn)
+                    }
+                }
+                if let error = google.lastError {
+                    Text(error).font(.caption).foregroundStyle(.red)
+                }
+                Toggle("Email me the notes when a meeting ends", isOn: $settings.emailSummaries)
+                    .disabled(!google.isSignedIn)
+                TextField("Your first name", text: $settings.userName)
+            } footer: {
+                Text(
+                    google.isConfigured
+                        ? "Grove reads your Google Calendar to name meetings and show what's next, "
+                            + "and sends mail only when you ask it to. It can't read your inbox. "
+                            + "Transcription and note writing never leave this Mac."
+                        : "This build has no Google client ID. See “Google sign-in” in the README.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section {
+                Button("Show the Welcome Screens Again") {
+                    settings.hasCompletedOnboarding = false
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .padding(.vertical, 8)
         .frame(width: 520)
     }
 }

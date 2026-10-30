@@ -41,6 +41,12 @@ final class MeetingSession {
     /// The calendar event this recording matched, when calendar use is on.
     private(set) var calendarEvent: CalendarEvent?
 
+    /// Finds the calendar event happening now — Google's or the Mac's. Set by
+    /// the app, so the session does not need to know where events come from.
+    @ObservationIgnored var calendarLookup: (@MainActor () -> CalendarEvent?)?
+    /// Called after a meeting is saved, for things like emailing its notes.
+    @ObservationIgnored var onSaved: (@MainActor (Meeting) -> Void)?
+
     /// Echo-deduplicated, so the panel shows what will actually be saved rather
     /// than the microphone's copy of the far end.
     private(set) var segments: [TranscriptSegment] = []
@@ -110,7 +116,7 @@ final class MeetingSession {
         guard phase == .idle else { return }
         meetingApp = detectedApp
         // A resumed meeting keeps the attendees it already has.
-        calendarEvent = resuming == nil && settings.useCalendar ? CalendarEvents.current() : nil
+        calendarEvent = resuming == nil ? calendarLookup?() : nil
         if let calendarEvent, title.trimmed.isEmpty, !calendarEvent.title.isEmpty {
             // Shown in the title field, so it can be corrected mid-meeting.
             title = calendarEvent.title
@@ -271,6 +277,7 @@ final class MeetingSession {
         do {
             _ = try store.save(meeting)
             lastSaved = meeting
+            onSaved?(meeting)
         } catch {
             errorMessage = "Could not save the meeting: \(error.localizedDescription)"
         }

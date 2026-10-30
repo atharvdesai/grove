@@ -73,7 +73,7 @@ struct ChatView: View {
                                                 .font(.caption)
                                             }
                                             .buttonStyle(.plain)
-                                            .foregroundStyle(Color.accentColor)
+                                            .foregroundStyle(Color.grove)
                                             .help("Open the transcript at this moment")
                                         }
                                     }

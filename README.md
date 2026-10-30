@@ -5,18 +5,17 @@ Locally sourced meeting notes. An open-source, local-first alternative to
 joining them, transcribes both sides on-device, and turns the rough notes you
 typed during the call into polished notes that keep your own structure.
 
-**Nothing leaves your Mac.** No transcription service, no cloud model, no
-account. You can verify that with Little Snitch.
+**Your meetings never leave your Mac.** No transcription service, no cloud
+model. Transcription, note writing and chat all run on-device. Signing in with
+Google is optional: it lets Grove read your calendar and send you your notes by
+email, and it is the only thing in the app that talks to anyone.
 
 Grove is built on [Oats](https://github.com/yuvrajadhikari/oats) by Yuvraj
 Adhikari (MIT) — see [Attribution](#attribution).
 
-> **Status: unbuilt.** This code has been written and reviewed but not yet
-> compiled or run anywhere — no Apple frameworks exist off a Mac. The first
-> build below is the real test. The capture → transcribe → enhance pipeline
-> Grove inherits from Oats was verified end to end by Oats' author on macOS 26;
-> Grove's own additions (meeting chat, timestamped notes) are new code and are
-> not yet verified on-device.
+> **Status: early.** Grove builds and runs on macOS 27 with the Command Line
+> Tools. Newer features — Google sign-in, calendar, email, quick notes, the
+> onboarding — are recent and not yet verified on-device end to end.
 
 ## What it does
 
@@ -63,6 +62,15 @@ Adhikari (MIT) — see [Attribution](#attribution).
   in Settings → Templates. They live in the library folder, so they sync with it.
 - **Share and export** — the share sheet (Mail, Messages, Notes…) or a Markdown
   file, from any meeting. Name the other speaker from the same menu.
+- **Quick notes from anywhere** — press ⌃⌥N in any app for a small notepad
+  that floats over your call; Esc or ⌃⌥N again hides it. Write what you want to
+  remember and Grove hears the rest; your lines steer the written-up notes.
+- **Sign in with Google** (optional) — your Google Calendar names meetings,
+  lists who was there and shows what's coming up today, and Gmail emails you
+  the notes when a meeting ends. Send-only: Grove cannot read your inbox.
+- **A real first run** — sign in, grant the two audio permissions, pick folders
+  like Work, School or Clients for Grove to file meetings into, and choose how
+  it should behave when a call starts.
 - **Plain files, no lock-in** — Markdown + JSON in `~/Documents/Grove`.
   Greppable, syncable, Obsidian-friendly.
 - Menu bar recording, pause/resume, folders, templates, meeting resume,
@@ -108,10 +116,33 @@ trust the doctor, not silence.
 Or run `./install.sh` from the repo root to build and install Grove.app and
 the `grove` CLI in one go.
 
+### Google sign-in
+
+Google features need an OAuth client ID of your own. It takes about ten minutes:
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), create a
+   project, then enable the **Gmail API** and the **Google Calendar API**.
+2. **OAuth consent screen**: choose *External*, fill in the app name, and add
+   your own Google account under *Test users*. Add the scopes
+   `calendar.readonly` and `gmail.send`.
+3. **Credentials → Create credentials → OAuth client ID**, application type
+   **iOS**, bundle ID `app.grove.Grove`. (iOS is right for a Mac app signing in
+   through the system browser sheet; it needs no client secret.)
+4. Save the client ID and rebuild:
+
+   ```bash
+   echo "YOUR-ID.apps.googleusercontent.com" > GroveApp/google-client-id.txt
+   cd GroveApp && ./scripts/bundle.sh release --run
+   ```
+
+The file is git-ignored. While the consent screen is in *Testing*, only the
+test users you listed can sign in; publishing to everyone requires Google's
+verification of the two scopes.
+
 ## Usage
 
 In the app: ⌘N names a meeting and starts recording, ⇧⌘P pauses, ⇧⌘R stops and
-writes the notes. Type rough fragments while you talk — they steer the notes.
+writes the notes, and ⌃⌥N opens quick notes from any app. Type rough fragments while you talk — they steer the notes.
 "Ask your meetings" on the home screen opens chat across the library.
 
 In the terminal:

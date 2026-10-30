@@ -15,7 +15,7 @@ final class MeetingWatcher {
     private(set) var pendingApp: MeetingApp? {
         didSet {
             guard pendingApp != oldValue else { return }
-            pendingEvent = pendingApp != nil && settings.useCalendar ? CalendarEvents.current() : nil
+            pendingEvent = pendingApp != nil ? session.calendarLookup?() : nil
         }
     }
     /// The calendar event the pending call is probably for, to name it in the

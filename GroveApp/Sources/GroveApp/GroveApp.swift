@@ -58,11 +58,18 @@ struct GroveApp: App {
     /// Held for its lifetime too: it watches for calls whether or not any
     /// window is open.
     @ViewState private var watcher: MeetingWatcher
+    @ViewState private var google: GoogleConnection
+    @ViewState private var quickNotes: QuickNotesController
 
     init() {
         let settings = AppSettings()
         let session = MeetingSession(settings: settings)
         let library = MeetingLibrary(settings: settings)
+        let google = GoogleConnection(settings: settings)
+        session.calendarLookup = { google.currentEvent() }
+        session.onSaved = { google.meetingSaved($0) }
+        _google = State(initialValue: google)
+        _quickNotes = State(initialValue: QuickNotesController(session: session))
         _settings = State(initialValue: settings)
         _session = State(initialValue: session)
         _library = State(initialValue: library)
@@ -90,6 +97,8 @@ struct GroveApp: App {
             .environment(settings)
             .environment(session)
             .environment(library)
+            .environment(google)
+            .tint(.grove)
             .preferredColorScheme(settings.appearance.colorScheme)
         }
         .defaultSize(width: 1040, height: 660)
@@ -110,6 +119,12 @@ struct GroveApp: App {
                 }
                 .keyboardShortcut("p", modifiers: [.command, .shift])
                 .disabled(!session.isRecording)
+
+                // The real shortcut is the global ⌃⌥N hot key, which works from
+                // any app; this entry is how people find out it exists.
+                Button("Quick Notes  \(QuickNotesShortcut.label)") {
+                    NotificationCenter.default.post(name: .toggleQuickNotes, object: nil)
+                }
             }
         }
 
@@ -117,6 +132,8 @@ struct GroveApp: App {
             SettingsView()
                 .environment(settings)
                 .environment(library)
+                .environment(google)
+                .tint(.grove)
                 .preferredColorScheme(settings.appearance.colorScheme)
         }
 
@@ -146,6 +163,7 @@ struct GroveApp: App {
 
 extension Notification.Name {
     static let newMeeting = Notification.Name("app.grove.newMeeting")
+    static let toggleQuickNotes = Notification.Name("app.grove.toggleQuickNotes")
     /// Posted by chat citations. userInfo: "meetingID" (UUID), "time"
     /// (TimeInterval) — the transcript moment to open.
     static let navigateToMeeting = Notification.Name("app.grove.navigateToMeeting")
@@ -171,6 +189,10 @@ private struct MenuBarContent: View {
 
         if session.isRecording {
             Button(session.isPaused ? "Resume" : "Pause") { session.togglePause() }
+        }
+
+        Button("Quick Notes  \(QuickNotesShortcut.label)") {
+            NotificationCenter.default.post(name: .toggleQuickNotes, object: nil)
         }
 
         Button("Open Grove") {

@@ -180,7 +180,7 @@ private struct SegmentRow: View {
             HStack(spacing: 6) {
                 Text(segment.speaker.displayName)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(segment.speaker == .me ? Color.accentColor : .secondary)
+                    .foregroundStyle(segment.speaker == .me ? Color.grove : .secondary)
                 Text(segment.start.clockString)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.tertiary)

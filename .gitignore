@@ -16,3 +16,7 @@ models/
 # instead of a committed binary, so clones stay fast.
 media/raw/
 media/grove-demo.mp4
+
+# Google OAuth client ID for local builds (see README)
+GroveApp/google-client-id.txt
+__pycache__/
