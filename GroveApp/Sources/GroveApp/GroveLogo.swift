@@ -12,7 +12,7 @@ struct GroveLogo: View {
     /// everywhere else, because a permanently animating logo is a distraction.
     var animated = false
 
-    @State private var animating = false
+    @ViewState private var animating = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let restingHeights: [CGFloat] = [0.30, 0.52, 0.40, 0.20]

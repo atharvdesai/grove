@@ -20,8 +20,8 @@ struct HomeView: View {
     let newMeeting: () -> Void
     @Binding var selection: Meeting.ID?
 
-    @State private var checks: [SystemCheck] = []
-    @State private var showingChat = false
+    @ViewState private var checks: [SystemCheck] = []
+    @ViewState private var showingChat = false
 
     var body: some View {
         ScrollView {

@@ -54,7 +54,7 @@ struct PermissionsList: View {
     let checks: [SystemCheck]
     let refresh: () async -> Void
 
-    @State private var working: String?
+    @ViewState private var working: String?
 
     var body: some View {
         VStack(spacing: 10) {

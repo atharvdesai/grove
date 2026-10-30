@@ -14,10 +14,10 @@ struct ChatView: View {
     @Environment(MeetingLibrary.self) private var library
     @Environment(\.dismiss) private var dismiss
 
-    @State private var question = ""
-    @State private var turns: [Turn] = []
-    @State private var isAsking = false
-    @State private var availability: ModelAvailability = .available
+    @ViewState private var question = ""
+    @ViewState private var turns: [Turn] = []
+    @ViewState private var isAsking = false
+    @ViewState private var availability: ModelAvailability = .available
 
     private struct Turn: Identifiable {
         let id = UUID()

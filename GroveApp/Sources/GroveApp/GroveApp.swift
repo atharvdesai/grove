@@ -46,14 +46,14 @@ final class WindowCoordinator: NSObject, NSApplicationDelegate {
 @main
 struct GroveApp: App {
     @NSApplicationDelegateAdaptor(WindowCoordinator.self) private var windowCoordinator
-    @State private var settings: AppSettings
-    @State private var session: MeetingSession
-    @State private var library: MeetingLibrary
+    @ViewState private var settings: AppSettings
+    @ViewState private var session: MeetingSession
+    @ViewState private var library: MeetingLibrary
 
     /// Held for its lifetime, not its value: it owns the floating panel and must
     /// outlive the main window, since the point of the overlay is to still be
     /// there when you are working in another app.
-    @State private var overlay: RecordingOverlayController
+    @ViewState private var overlay: RecordingOverlayController
 
     init() {
         let settings = AppSettings()
@@ -181,9 +181,9 @@ struct RootView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(MeetingSession.self) private var session
     @Environment(MeetingLibrary.self) private var library
-    @State private var selection: Meeting.ID?
-    @State private var showingNewMeeting = false
-    @State private var transcriptSeek: TranscriptSeek?
+    @ViewState private var selection: Meeting.ID?
+    @ViewState private var showingNewMeeting = false
+    @ViewState private var transcriptSeek: TranscriptSeek?
 
     var body: some View {
         NavigationSplitView {
@@ -304,9 +304,9 @@ private struct NewMeetingSheet: View {
     @Environment(MeetingLibrary.self) private var library
     @Environment(\.dismiss) private var dismiss
 
-    @State private var title = ""
-    @State private var templateID = ""
-    @State private var folder: String?
+    @ViewState private var title = ""
+    @ViewState private var templateID = ""
+    @ViewState private var folder: String?
     @FocusState private var titleFocused: Bool
 
     var body: some View {

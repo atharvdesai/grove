@@ -12,8 +12,8 @@ import SwiftUI
 /// looks broken.
 struct OnboardingView: View {
     @Environment(AppSettings.self) private var settings
-    @State private var step = 0
-    @State private var checks: [SystemCheck] = []
+    @ViewState private var step = 0
+    @ViewState private var checks: [SystemCheck] = []
 
     private let lastStep = 2
 

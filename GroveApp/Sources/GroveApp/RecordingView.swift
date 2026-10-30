@@ -91,7 +91,7 @@ private struct RecordingHeader: View {
 private struct RecordingIndicator: View {
     let active: Bool
     var paused: Bool = false
-    @State private var pulsing = false
+    @ViewState private var pulsing = false
 
     var body: some View {
         Circle()

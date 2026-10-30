@@ -96,10 +96,10 @@ struct LibrarySidebar: View {
     @Environment(MeetingSession.self) private var session
     @Binding var selection: Meeting.ID?
 
-    @State private var renaming: Meeting?
-    @State private var deleting: Meeting?
-    @State private var newFolderName = ""
-    @State private var showingNewFolder = false
+    @ViewState private var renaming: Meeting?
+    @ViewState private var deleting: Meeting?
+    @ViewState private var newFolderName = ""
+    @ViewState private var showingNewFolder = false
 
     var body: some View {
         List(selection: $selection) {
@@ -242,7 +242,7 @@ private struct RenameSheet: View {
     let commit: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var title: String
+    @ViewState private var title: String
 
     init(meeting: Meeting, commit: @escaping (String) -> Void) {
         self.meeting = meeting
@@ -309,9 +309,9 @@ struct MeetingDetailView: View {
     /// Resolved against `availableTabs` before use — a meeting that was never
     /// enhanced has no Notes tab, and defaulting to it stranded the reader on
     /// "These notes were not enhanced." instead of the transcript they do have.
-    @State private var tab: Tab?
-    @State private var pendingSeek: TranscriptSeek?
-    @State private var highlightedSegment: TranscriptSegment.ID?
+    @ViewState private var tab: Tab?
+    @ViewState private var pendingSeek: TranscriptSeek?
+    @ViewState private var highlightedSegment: TranscriptSegment.ID?
 
     enum Tab: String, CaseIterable, Identifiable {
         case notes = "Notes"

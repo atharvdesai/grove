@@ -57,7 +57,7 @@ struct RecordingOverlayView: View {
 
 private struct PulsingDot: View {
     let paused: Bool
-    @State private var dim = false
+    @ViewState private var dim = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {

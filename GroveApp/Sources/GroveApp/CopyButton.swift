@@ -9,7 +9,7 @@ struct CopyButton: View {
     let title: String
     let text: String
 
-    @State private var copied = false
+    @ViewState private var copied = false
 
     var body: some View {
         Button {

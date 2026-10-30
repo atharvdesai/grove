@@ -96,7 +96,7 @@ private struct GeneralSettings: View {
 /// The tab that was missing: the home screen said the microphone was blocked and
 /// pointed here, and here had nothing to say about it.
 private struct PermissionsSettings: View {
-    @State private var checks: [SystemCheck] = []
+    @ViewState private var checks: [SystemCheck] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
