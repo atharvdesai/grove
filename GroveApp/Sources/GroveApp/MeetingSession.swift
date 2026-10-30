@@ -186,8 +186,10 @@ final class MeetingSession {
         // and silently writing an empty one would look like data loss later.
         guard !transcript.isEmpty || !roughNotes.trimmed.isEmpty else {
             errorMessage =
-                "Nothing was captured. Check microphone and audio permissions, "
-                + "or run `grove debug-audio` to see whether audio is reaching Grove."
+                "Nothing was transcribed, so there was nothing to save. That is "
+                + "expected if nobody spoke. If people did talk, check the microphone "
+                + "and system audio permissions, or run `grove debug-audio` to see "
+                + "whether audio is reaching Grove."
             phase = .idle
             return nil
         }

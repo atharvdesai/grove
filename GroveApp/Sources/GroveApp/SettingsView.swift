@@ -40,13 +40,15 @@ private struct GeneralSettings: View {
                     ForEach(AppSettings.MeetingDetection.allCases) { Text($0.label).tag($0) }
                 }
                 Toggle("Name and file meetings automatically", isOn: $settings.autoOrganize)
+                Toggle("Open Grove at login", isOn: $settings.openAtLogin)
             } footer: {
                 Text(
                     "Grove notices Zoom, Teams, Meet in your browser, FaceTime, Slack and "
                         + "other call apps when they start using the microphone. Calls in "
                         + "a browser always ask first. Untitled meetings are named, and "
                         + "filed into one of your existing folders, by the on-device model "
-                        + "when they end.")
+                        + "when they end. Grove can only notice calls while it is running, "
+                        + "so it opens at login and waits in the menu bar.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

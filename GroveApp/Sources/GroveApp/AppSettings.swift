@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import GroveKit
+import ServiceManagement
 import SwiftUI
 
 /// User preferences, backed by `UserDefaults`.
@@ -56,6 +57,7 @@ final class AppSettings {
         static let showRecordingOverlay = "showRecordingOverlay"
         static let meetingDetection = "meetingDetection"
         static let autoOrganize = "autoOrganizeMeetings"
+        static let setUpOpenAtLogin = "hasSetUpOpenAtLogin"
     }
 
     private let defaults: UserDefaults
@@ -81,7 +83,10 @@ final class AppSettings {
     }
 
     var hasCompletedOnboarding: Bool {
-        didSet { defaults.set(hasCompletedOnboarding, forKey: Key.completedOnboarding) }
+        didSet {
+            defaults.set(hasCompletedOnboarding, forKey: Key.completedOnboarding)
+            if hasCompletedOnboarding { setUpOpenAtLoginOnce() }
+        }
     }
 
     /// The floating pill shown over other apps while recording.
@@ -116,6 +121,33 @@ final class AppSettings {
             MeetingDetection(rawValue: defaults.string(forKey: Key.meetingDetection) ?? "")
             ?? .ask
         self.autoOrganize = defaults.object(forKey: Key.autoOrganize) as? Bool ?? true
+        if hasCompletedOnboarding { setUpOpenAtLoginOnce() }
+    }
+
+    /// Whether Grove starts, in the menu bar, when you log in.
+    ///
+    /// Read from the system every time rather than mirrored in UserDefaults:
+    /// the user can remove the login item in System Settings, and a stored copy
+    /// would go on claiming it was there.
+    var openAtLogin: Bool {
+        get {
+            access(keyPath: \.openAtLogin)
+            return SMAppService.mainApp.status == .enabled
+        }
+        set {
+            withMutation(keyPath: \.openAtLogin) {
+                try? newValue
+                    ? SMAppService.mainApp.register() : SMAppService.mainApp.unregister()
+            }
+        }
+    }
+
+    /// Call detection only works while Grove is running, so it opens at login
+    /// unless told otherwise. Done once: switching it off in Settings sticks.
+    private func setUpOpenAtLoginOnce() {
+        guard !defaults.bool(forKey: Key.setUpOpenAtLogin) else { return }
+        defaults.set(true, forKey: Key.setUpOpenAtLogin)
+        openAtLogin = true
     }
 
     var storageURL: URL {
