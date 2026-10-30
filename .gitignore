@@ -20,3 +20,4 @@ media/grove-demo.mp4
 # Google OAuth client ID for local builds (see README)
 GroveApp/google-client-id.txt
 __pycache__/
+dist/

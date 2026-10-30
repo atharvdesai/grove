@@ -1,20 +1,64 @@
+<div align="center">
+
+<img src="docs/images/icon.png" width="128" height="128" alt="Grove icon">
+
 # Grove
 
-Locally sourced meeting notes. An open-source, local-first alternative to
-[Granola](https://granola.ai) for macOS: it listens to your meetings without
-joining them, transcribes both sides on-device, and turns the rough notes you
-typed during the call into polished notes that keep your own structure.
+**Meeting notes that listen without joining the call — written on your Mac.**
 
-**Your meetings never leave your Mac.** No transcription service, no cloud
-model. Transcription, note writing and chat all run on-device. Signing in with
-Google is optional: it lets Grove read your calendar and send you your notes by
-email, and it is the only thing in the app that talks to anyone.
+No bot in the meeting. No transcript in the cloud. Just your rough notes,
+turned into good ones, with every line traceable to what was actually said.
 
-> **Status: early.** Grove builds and runs on macOS 27 with the Command Line
-> Tools. Newer features — Google sign-in, calendar, email, quick notes, the
-> onboarding — are recent and not yet verified on-device end to end.
+<br>
 
-## What it does
+<a href="https://github.com/atharvdesai/grove/releases/latest/download/Grove.dmg"><img src="https://img.shields.io/badge/Download_for_Mac-Grove.dmg-1F8A5B?style=for-the-badge&logo=apple&logoColor=white" alt="Download Grove for Mac"></a>
+
+`brew install --cask atharvdesai/grove/grove`
+
+<sub>macOS 26 or later · Apple Silicon · Free and open source (MIT)</sub>
+
+<br>
+
+[![Latest release](https://img.shields.io/github/v/release/atharvdesai/grove?color=1F8A5B&label=latest)](https://github.com/atharvdesai/grove/releases/latest)
+![macOS 26+](https://img.shields.io/badge/macOS-26%2B-0C3429)
+![On-device AI](https://img.shields.io/badge/AI-on--device-2EAA76)
+![License: MIT](https://img.shields.io/badge/license-MIT-lightgrey)
+
+</div>
+
+---
+
+## Why Grove
+
+|  |  |
+|---|---|
+| 🎙️ **No bot joins your call** | Grove hears Zoom, Meet, Teams, FaceTime or a lecture hall straight from your Mac. Nobody sees a recorder in the participant list. |
+| 🔒 **Private by default** | Transcription, note writing and chat run on-device. Claude and Google are opt-in, never required. |
+| ✍️ **Your notes, made good** | Jot a few words; Grove fills in the names, numbers and decisions — in your structure, not its own. |
+| 🔗 **Every line is checkable** | Notes link to the exact transcript moment behind them, and Grove asks when your notes disagree with what was said. |
+| 🧭 **Find anything** | ⌘K, plain-English search, Spotlight, people pages, a decision log, and a list of what others promised you. |
+| 📁 **Your files, forever** | Plain Markdown and JSON in `~/Documents/Grove`. Open them in Obsidian, grep them, sync them. |
+
+## Install
+
+**Download:** grab [**Grove.dmg**](https://github.com/atharvdesai/grove/releases/latest/download/Grove.dmg),
+open it, and drag Grove into Applications.
+
+**Homebrew:**
+
+```bash
+brew install --cask atharvdesai/grove/grove
+```
+
+> **First launch of the download.** Early builds aren't signed by Apple yet,
+> so macOS may say it can't verify Grove. Open **System Settings → Privacy &
+> Security**, scroll down, and click **Open Anyway** — once. (Homebrew installs
+> skip this.)
+
+Then press **⌃⌥N** in any app for quick notes, join a call, and Grove will
+offer to take notes.
+
+## Everything it does
 
 - **Records both sides of a call without a bot** — a Core Audio process tap
   hears your meeting apps; your microphone hears you. The two streams are the
@@ -121,7 +165,7 @@ Two things use the network, both at setup and neither for AI: Apple's speech
 models install themselves on first use if not already present, and cloning
 this repo is a download. Inference never leaves the machine.
 
-## Setup
+## Build from source
 
 ```bash
 git clone https://github.com/atharvdesai/grove.git && cd grove
@@ -199,6 +243,21 @@ pricing decision that later changes, a customer rollout, a hiring loop, a 1:1:
 ./scripts/load-sample-meetings.py            # add them, then reopen Grove
 ./scripts/load-sample-meetings.py --remove   # take them out again
 ```
+
+## Releasing
+
+```bash
+echo 0.2.0 > VERSION && ./scripts/sync-version.sh
+git commit -am "Release 0.2.0" && git tag v0.2.0 && git push && git push --tags
+```
+
+The tag runs `.github/workflows/release.yml` on a macOS runner: it builds
+`Grove.dmg` and `Grove.zip` with `scripts/release.sh`, publishes them as the
+latest GitHub Release (so the download button always gets the newest), and
+updates the Homebrew cask in `atharvdesai/homebrew-grove`. Add a Developer ID
+certificate and Apple notarization credentials as repository secrets and the
+same workflow signs and notarizes; without them it ships an unsigned build.
+Run `./scripts/release.sh` locally to build the same files into `dist/`.
 
 ## Repository
 
