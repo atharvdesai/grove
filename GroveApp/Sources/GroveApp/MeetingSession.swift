@@ -21,6 +21,8 @@ final class MeetingSession {
         /// Draining both transcribers. Bounded, but can take seconds.
         case finishing
         case enhancing
+        /// Choosing a title and folder for an untitled meeting.
+        case naming
     }
 
     private(set) var phase: Phase = .idle
@@ -29,6 +31,13 @@ final class MeetingSession {
     var templateID: String = NoteTemplate.general.id
     /// Folder the finished meeting is filed under, chosen before recording.
     var folder: String?
+    /// True when nobody chose a folder, so Grove may file the meeting itself.
+    /// Distinct from `folder == nil`, which can also be a deliberate choice of
+    /// the top level.
+    var folderIsAutomatic = true
+    /// The call app that prompted this recording, when detection started it.
+    /// Feeds the fallback title and gives the namer a hint.
+    private(set) var meetingApp: String?
 
     /// Echo-deduplicated, so the panel shows what will actually be saved rather
     /// than the microphone's copy of the far end.
@@ -77,6 +86,7 @@ final class MeetingSession {
         case .paused: return "Paused · \(elapsed.clockString)"
         case .finishing: return "Finishing transcription…"
         case .enhancing: return "Writing your notes…"
+        case .naming: return "Naming the meeting…"
         }
     }
 
@@ -89,11 +99,14 @@ final class MeetingSession {
         roughNotes = meeting.roughNotes
         templateID = meeting.templateID
         folder = meeting.folder
+        folderIsAutomatic = false
         await start()
     }
 
-    func start() async {
+    /// `detectedApp` is the call app that prompted this recording, if any.
+    func start(detectedApp: String? = nil) async {
         guard phase == .idle else { return }
+        meetingApp = detectedApp
         phase = .starting
         errorMessage = nil
         lastSaved = nil
@@ -179,6 +192,10 @@ final class MeetingSession {
             return nil
         }
 
+        // Nobody named it, so the title is Grove's to choose. A resumed meeting
+        // keeps the name it already has.
+        let titleIsAutomatic = resuming == nil && title.trimmed.isEmpty
+
         // Keep the original identity when resuming, so this overwrites the same
         // folder on disk instead of creating a second one.
         var meeting = Meeting(
@@ -213,7 +230,9 @@ final class MeetingSession {
                     roughNotes: roughNotes,
                     transcript: transcript,
                     template: .named(templateID),
-                    meetingTitle: meeting.title)
+                    // A placeholder like "Meeting Thursday 14:00" tells the
+                    // model nothing and invites it to echo the date back.
+                    meetingTitle: titleIsAutomatic ? nil : meeting.title)
                 meeting.enhancedNotes = TimestampLinker.link(
                     notes: enhanced, transcript: transcript)
             } catch {
@@ -223,6 +242,14 @@ final class MeetingSession {
             }
         case .unavailable(let reason):
             errorMessage = "The on-device writing model is unavailable (\(reason)).\n\nYour transcript and notes are saved."
+        }
+
+        if settings.autoOrganize, resuming == nil,
+            titleIsAutomatic || (folderIsAutomatic && folder == nil)
+        {
+            phase = .naming
+            await organize(
+                &meeting, nameIt: titleIsAutomatic, fileIt: folderIsAutomatic && folder == nil)
         }
 
         do {
@@ -236,9 +263,38 @@ final class MeetingSession {
         roughNotes = ""
         title = ""
         folder = nil
+        folderIsAutomatic = true
+        meetingApp = nil
         resuming = nil
         templateID = settings.defaultTemplateID
         return meeting
+    }
+
+    /// Names the meeting and files it into an existing folder, on-device.
+    ///
+    /// Best effort by design: a meeting saved under its fallback title is fine,
+    /// and nothing about naming is worth an error message on top of the notes.
+    private func organize(_ meeting: inout Meeting, nameIt: Bool, fileIt: Bool) async {
+        let namer = MeetingNamer()
+        guard namer.availability == .available else { return }
+
+        let existing = (try? store.list()) ?? []
+        let folders = ((try? store.folders()) ?? []).map { name in
+            MeetingNamer.FolderContext(
+                name: name,
+                recentTitles: existing.filter { $0.folder == name }.prefix(3).map(\.title))
+        }
+
+        guard
+            let suggestion = try? await namer.suggest(
+                transcript: meeting.transcript,
+                notes: meeting.enhancedNotes ?? meeting.roughNotes,
+                folders: fileIt ? folders : [],
+                appName: meetingApp)
+        else { return }
+
+        if nameIt { meeting.title = suggestion.title }
+        if fileIt, let folder = suggestion.folder { meeting.folder = folder }
     }
 
     func dismissError() { errorMessage = nil }
@@ -248,7 +304,8 @@ final class MeetingSession {
         if !trimmed.isEmpty { return trimmed }
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE HH:mm"
-        return "Meeting \(formatter.string(from: startedAt))"
+        let kind = meetingApp.map { "\($0) meeting" } ?? "Meeting"
+        return "\(kind) \(formatter.string(from: startedAt))"
     }
 
     private func refreshSegments() {

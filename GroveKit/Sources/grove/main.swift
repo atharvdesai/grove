@@ -62,6 +62,7 @@ func printUsage() {
           grove ask QUESTION... [--dir PATH]
           grove templates
           grove doctor
+          grove detect
           grove debug-audio
 
         RECORD
@@ -377,6 +378,25 @@ func runAsk(_ arguments: Arguments) async throws {
     }
 }
 
+/// What the app's meeting detection sees right now. Run it with a call open to
+/// check Grove recognises your call app, or to find the bundle ID of one it
+/// does not.
+func runDetect() {
+    let apps = MeetingDetector.activeMeetingApps()
+    if apps.isEmpty {
+        print("No call app is using the microphone.")
+    } else {
+        for app in apps {
+            print("call detected           \(app.name)\(app.isBrowser ? " (browser — the app asks first)" : "")")
+        }
+    }
+    let processes = MeetingDetector.processesUsingMicrophone()
+    print(String(repeating: "─", count: 46))
+    print(processes.isEmpty
+        ? "nothing is using the microphone"
+        : "using the microphone    " + processes.joined(separator: ", "))
+}
+
 func defaultTitle() -> String {
     let formatter = DateFormatter()
     formatter.dateFormat = "EEEE HH:mm"
@@ -424,6 +444,7 @@ do {
     case "ask": try await runAsk(arguments)
     case "doctor": await runDoctor()
     case "debug-audio": await runDebugAudio()
+    case "detect": runDetect()
     case "version", "--version", "-v": print("grove \(groveVersion)")
     case "templates":
         for template in NoteTemplate.builtIns {

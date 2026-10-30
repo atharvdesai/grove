@@ -36,6 +36,23 @@ private struct GeneralSettings: View {
                 isOn: $settings.showRecordingOverlay)
 
             Section {
+                Picker("When a call starts", selection: $settings.meetingDetection) {
+                    ForEach(AppSettings.MeetingDetection.allCases) { Text($0.label).tag($0) }
+                }
+                Toggle("Name and file meetings automatically", isOn: $settings.autoOrganize)
+            } footer: {
+                Text(
+                    "Grove notices Zoom, Teams, Meet in your browser, FaceTime, Slack and "
+                        + "other call apps when they start using the microphone. Calls in "
+                        + "a browser always ask first. Untitled meetings are named, and "
+                        + "filed into one of your existing folders, by the on-device model "
+                        + "when they end.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section {
                 LabeledContent("Meetings are saved to") {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(settings.storageURL.path)

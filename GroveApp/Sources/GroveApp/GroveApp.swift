@@ -55,6 +55,10 @@ struct GroveApp: App {
     /// there when you are working in another app.
     @ViewState private var overlay: RecordingOverlayController
 
+    /// Held for its lifetime too: it watches for calls whether or not any
+    /// window is open.
+    @ViewState private var watcher: MeetingWatcher
+
     init() {
         let settings = AppSettings()
         let session = MeetingSession(settings: settings)
@@ -62,11 +66,16 @@ struct GroveApp: App {
         _settings = State(initialValue: settings)
         _session = State(initialValue: session)
         _library = State(initialValue: library)
+        let stopAndReload: @MainActor () async -> Void = {
+            await session.stop()
+            library.reload()
+        }
         _overlay = State(
-            initialValue: RecordingOverlayController(session: session, settings: settings) {
-                await session.stop()
-                library.reload()
-            })
+            initialValue: RecordingOverlayController(
+                session: session, settings: settings, stop: stopAndReload))
+        _watcher = State(
+            initialValue: MeetingWatcher(
+                session: session, settings: settings, stop: stopAndReload))
     }
 
     var body: some Scene {
@@ -94,8 +103,7 @@ struct GroveApp: App {
                     Task { await toggleRecording() }
                 }
                 .keyboardShortcut("r", modifiers: [.command, .shift])
-                .disabled(session.phase == .starting || session.phase == .finishing
-                    || session.phase == .enhancing)
+                .disabled(session.isBusy && !session.isRecording)
 
                 Button(session.isPaused ? "Resume Recording" : "Pause Recording") {
                     session.togglePause()
@@ -306,15 +314,25 @@ private struct NewMeetingSheet: View {
 
     @ViewState private var title = ""
     @ViewState private var templateID = ""
-    @ViewState private var folder: String?
+    @ViewState private var folder: FolderChoice = .automatic
     @FocusState private var titleFocused: Bool
+
+    /// "Automatic" and "Meetings" both end with no folder chosen up front; the
+    /// difference is whether Grove may file the meeting itself afterwards.
+    private enum FolderChoice: Hashable {
+        case automatic
+        case topLevel
+        case named(String)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("New Meeting").font(.headline)
 
             Form {
-                TextField("Title", text: $title, prompt: Text("Optional"))
+                TextField(
+                    "Title", text: $title,
+                    prompt: Text(settings.autoOrganize ? "Named for you when it ends" : "Optional"))
                     .focused($titleFocused)
                     .onSubmit(start)
 
@@ -323,9 +341,12 @@ private struct NewMeetingSheet: View {
                 }
 
                 Picker("Folder", selection: $folder) {
-                    Text("Meetings").tag(String?.none)
+                    if settings.autoOrganize {
+                        Text("Choose for me").tag(FolderChoice.automatic)
+                    }
+                    Text("Meetings").tag(FolderChoice.topLevel)
                     ForEach(library.allFolders, id: \.self) { name in
-                        Text(name).tag(String?.some(name))
+                        Text(name).tag(FolderChoice.named(name))
                     }
                 }
             }
@@ -342,6 +363,7 @@ private struct NewMeetingSheet: View {
         .frame(width: 420)
         .onAppear {
             templateID = settings.defaultTemplateID
+            if !settings.autoOrganize { folder = .topLevel }
             titleFocused = true
         }
     }
@@ -349,7 +371,17 @@ private struct NewMeetingSheet: View {
     private func start() {
         session.title = title
         session.templateID = templateID.isEmpty ? settings.defaultTemplateID : templateID
-        session.folder = folder
+        switch folder {
+        case .automatic:
+            session.folder = nil
+            session.folderIsAutomatic = true
+        case .topLevel:
+            session.folder = nil
+            session.folderIsAutomatic = false
+        case .named(let name):
+            session.folder = name
+            session.folderIsAutomatic = false
+        }
         dismiss()
         Task { await session.start() }
     }

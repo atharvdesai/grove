@@ -39,6 +39,14 @@ Adhikari (MIT) — see [Attribution](#attribution).
   is stripped, and clicking a source opens the transcript at that moment.
   When nothing in your meetings covers the question, Grove says so instead of
   composing an answer.
+- **Notices when a call starts** — when Zoom, Teams, FaceTime, Slack, Webex,
+  Discord or a browser (Google Meet) starts using the microphone, Grove offers
+  to take notes, or starts on its own if you turn that on in Settings. Calls in
+  a browser always ask first. A recording Grove started for a call stops by
+  itself about ten seconds after the call app lets go of the mic.
+- **Names and files meetings for you** — leave the title blank and the
+  on-device model names the meeting when it ends, and files it into one of your
+  existing folders when it clearly belongs there. It never invents a folder.
 - **Plain files, no lock-in** — Markdown + JSON in `~/Documents/Grove`.
   Greppable, syncable, Obsidian-friendly.
 - Menu bar recording, pause/resume, folders, templates, meeting resume,
@@ -98,6 +106,7 @@ grove list
 grove ask what budget was agreed
 grove templates
 grove doctor
+grove detect        # which call apps Grove sees using the microphone
 grove debug-audio   # when a recording comes back empty
 ```
 

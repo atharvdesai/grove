@@ -33,6 +33,20 @@ final class AppSettings {
         }
     }
 
+    /// What happens when a call app picks up the microphone.
+    enum MeetingDetection: String, CaseIterable, Identifiable, Sendable {
+        case off, ask, automatic
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .off: return "Do nothing"
+            case .ask: return "Ask to take notes"
+            case .automatic: return "Start recording"
+            }
+        }
+    }
+
     private enum Key {
         static let appearance = "appearance"
         static let defaultTemplate = "defaultTemplateID"
@@ -40,6 +54,8 @@ final class AppSettings {
         static let showTranscriptWhileRecording = "showTranscriptWhileRecording"
         static let completedOnboarding = "hasCompletedOnboarding"
         static let showRecordingOverlay = "showRecordingOverlay"
+        static let meetingDetection = "meetingDetection"
+        static let autoOrganize = "autoOrganizeMeetings"
     }
 
     private let defaults: UserDefaults
@@ -73,6 +89,17 @@ final class AppSettings {
         didSet { defaults.set(showRecordingOverlay, forKey: Key.showRecordingOverlay) }
     }
 
+    /// Asking is the default because recording a call is not a decision an app
+    /// should make on its own: the other people on it may not have agreed.
+    var meetingDetection: MeetingDetection {
+        didSet { defaults.set(meetingDetection.rawValue, forKey: Key.meetingDetection) }
+    }
+
+    /// Name untitled meetings and file them into an existing folder, on-device.
+    var autoOrganize: Bool {
+        didSet { defaults.set(autoOrganize, forKey: Key.autoOrganize) }
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.appearance =
@@ -85,6 +112,10 @@ final class AppSettings {
         self.hasCompletedOnboarding = defaults.bool(forKey: Key.completedOnboarding)
         self.showRecordingOverlay =
             defaults.object(forKey: Key.showRecordingOverlay) as? Bool ?? true
+        self.meetingDetection =
+            MeetingDetection(rawValue: defaults.string(forKey: Key.meetingDetection) ?? "")
+            ?? .ask
+        self.autoOrganize = defaults.object(forKey: Key.autoOrganize) as? Bool ?? true
     }
 
     var storageURL: URL {

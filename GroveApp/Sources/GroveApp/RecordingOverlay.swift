@@ -82,13 +82,41 @@ private struct PulsingDot: View {
 /// the active app while you are in a meeting, so a click on the panel is a
 /// "first mouse" event, and AppKit swallows it by default. You press Pause,
 /// focus correctly stays where it is, and the recording keeps running.
-private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
+final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     @MainActor required init(rootView: Content) { super.init(rootView: rootView) }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not used") }
+}
+
+/// A borderless panel that floats over every app and Space without taking
+/// focus. Shared by the recording pill and the meeting-detected prompt.
+@MainActor
+func makeFloatingPanel(hosting: NSView) -> NSPanel {
+    let panel = NSPanel(
+        contentRect: .zero,
+        // Non-activating is the important flag: clicking Pause must not pull
+        // focus out of the meeting app you are typing in.
+        styleMask: [.borderless, .nonactivatingPanel],
+        backing: .buffered,
+        defer: false)
+    panel.contentView = hosting
+    panel.isFloatingPanel = true
+    panel.level = .statusBar
+    panel.backgroundColor = .clear
+    panel.isOpaque = false
+    panel.hasShadow = true
+    panel.isMovableByWindowBackground = true
+    panel.hidesOnDeactivate = false
+    panel.animationBehavior = .utilityWindow
+    // Follows you between Spaces and sits over full-screen apps, which is
+    // where meetings usually are.
+    panel.collectionBehavior = [
+        .canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle,
+    ]
+    return panel
 }
 
 /// Owns the floating panel and keeps it in step with the session.
@@ -148,27 +176,7 @@ final class RecordingOverlayController {
         let hosting = FirstMouseHostingView(rootView: content)
         hosting.sizingOptions = [.preferredContentSize]
 
-        let panel = NSPanel(
-            contentRect: .zero,
-            // Non-activating is the important flag: clicking Pause must not pull
-            // focus out of the meeting app you are typing in.
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: false)
-        panel.contentView = hosting
-        panel.isFloatingPanel = true
-        panel.level = .statusBar
-        panel.backgroundColor = .clear
-        panel.isOpaque = false
-        panel.hasShadow = true
-        panel.isMovableByWindowBackground = true
-        panel.hidesOnDeactivate = false
-        panel.animationBehavior = .utilityWindow
-        // Follows you between Spaces and sits over full-screen apps, which is
-        // where meetings usually are.
-        panel.collectionBehavior = [
-            .canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle,
-        ]
+        let panel = makeFloatingPanel(hosting: hosting)
         // fittingSize is zero until the hosting view has laid out, and a
         // zero-sized panel is indistinguishable from one that never appeared.
         hosting.layoutSubtreeIfNeeded()

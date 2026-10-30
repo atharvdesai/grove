@@ -39,6 +39,7 @@ struct RecordingView: View {
 
 private struct RecordingHeader: View {
     @Environment(MeetingSession.self) private var session
+    @Environment(AppSettings.self) private var settings
 
     var body: some View {
         @Bindable var session = session
@@ -50,7 +51,9 @@ private struct RecordingHeader: View {
             // picker and an untruncatable status string, the header's demand
             // plus the sidebar exceeded the window, and NavigationSplitView
             // resolved that by sliding the sidebar off the left edge.
-            TextField("Meeting title", text: $session.title)
+            TextField(
+                settings.autoOrganize ? "Untitled — named when it ends" : "Meeting title",
+                text: $session.title)
                 .textFieldStyle(.plain)
                 .font(.title3.weight(.medium))
                 .frame(minWidth: 100, maxWidth: 360)
