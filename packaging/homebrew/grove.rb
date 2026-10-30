@@ -1,5 +1,5 @@
-# Template for the cask in atharvdesai/homebrew-grove. The release workflow
-# fills in @VERSION@ and @SHA256@ and pushes it there; install with
+# The cask in atharvdesai/homebrew-grove. The release workflow fills in the
+# version and sha256 placeholders and pushes it there; install with
 #
 #   brew install --cask atharvdesai/grove/grove
 cask "grove" do
