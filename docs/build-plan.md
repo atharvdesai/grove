@@ -209,3 +209,22 @@ Still open:
 4. **Model licences:** the pyannote-derived Core ML models are CC BY 4.0,
    which requires attribution in the About screen. Confirm that's acceptable.
    The FluidAudio code itself is Apache 2.0.
+
+---
+
+## Shipped since: clarity and finding things
+
+Built: meeting insights (summary, decisions, commitments, questions, terms),
+people pages, decision log with "replaced by", waiting on, open questions,
+glossary, ⌘K command bar, plain-English search, Spotlight, summary line per
+meeting, "From last time" carry-over, changes since last time, recurring
+folder and template, deadline reminders, off-the-record shortcut, copy as
+quote, Friday digest email.
+
+Not yet:
+
+- **Flag uncertain words.** This needs per-word confidence from the speech
+  analyser threaded through the transcript format.
+- **Notes written into the calendar event.** This needs the
+  `calendar.events` write scope, so every user would be asked for consent
+  again.

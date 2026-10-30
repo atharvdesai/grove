@@ -86,6 +86,22 @@ email, and it is the only thing in the app that talks to anyone.
 - **Polish & Cite** — tidies your own notes without adding anything, and ends
   every line with the transcript moment that backs it, so each line can be
   checked with a click.
+- **Find anything** — ⌘K jumps to any meeting, person, decision or command;
+  the sidebar search takes plain English ("with Janet last month", "hiring
+  about salary"); and meetings show up in Spotlight.
+- **People, decisions, promises** — every meeting is distilled into a one-line
+  summary, decisions, who promised what, open questions and terms. From that:
+  a page per person (what they owe you, what you owe them), a decision log
+  that marks decisions later meetings replaced, a "Waiting on" list of what
+  others promised you, open questions nobody answered, and a glossary.
+- **Recurring meetings** — the next standup or 1:1 starts with last time's
+  open items, lands in the same folder with the same template, and shows what
+  changed since last time.
+- **Off the record** — ⌃⌥O (or the pill) drops what's said from the transcript,
+  notes, chat and email entirely, until you press it again.
+- **Reminders and quotes** — promises with a deadline remind you the afternoon
+  before; any transcript line or decision copies as a quote with who, where
+  and when. "This week" can arrive by email on Friday afternoons.
 - **Plain files, no lock-in** — Markdown + JSON in `~/Documents/Grove`.
   Greppable, syncable, Obsidian-friendly.
 - Menu bar recording, pause/resume, folders, templates, meeting resume,

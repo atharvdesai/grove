@@ -24,7 +24,27 @@ struct RecordingOverlayView: View {
                 .font(.system(.callout, design: .rounded).monospacedDigit().weight(.medium))
                 .foregroundStyle(.primary)
 
+            if session.isOffRecord {
+                Text("OFF THE RECORD")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.orange, in: Capsule())
+                    .help("Nothing said now is kept. Press ⌃⌥O to go back on the record.")
+            }
+
             Divider().frame(height: 16)
+
+            Button {
+                session.toggleOffRecord()
+            } label: {
+                Image(systemName: session.isOffRecord ? "eye.slash.fill" : "eye.slash")
+                    .foregroundStyle(session.isOffRecord ? Color.orange : Color.primary)
+                    .frame(width: 22, height: 22)
+            }
+            .buttonStyle(.plain)
+            .help(session.isOffRecord ? "Back on the record (⌃⌥O)" : "Off the record (⌃⌥O)")
 
             Button {
                 NotificationCenter.default.post(name: .toggleQuickNotes, object: nil)

@@ -43,6 +43,7 @@ final class MeetingLibrary {
             folders = try store.folders()
             templates = NoteTemplate.builtIns + store.customTemplates()
             loadError = nil
+            SpotlightIndex.update(with: meetings)
         } catch {
             loadError = error.localizedDescription
         }
@@ -77,6 +78,53 @@ final class MeetingLibrary {
     }
 
     var customTemplates: [NoteTemplate] { templates.filter { !$0.isBuiltIn } }
+
+    // MARK: - Across the library
+
+    /// Who "me" is, for telling your promises from other people's.
+    var myName: String { settings.userName }
+
+    var people: [LibraryIndex.Person] { LibraryIndex.people(in: meetings, myName: myName) }
+    var decisionLog: [LibraryIndex.Decision] { LibraryIndex.decisions(in: meetings) }
+    var waitingOn: [LibraryIndex.Promise] { LibraryIndex.waitingOn(meetings, myName: myName) }
+    var openQuestions: [LibraryIndex.Ref] { LibraryIndex.openQuestions(in: meetings) }
+    func glossary(folder: String? = nil) -> [LibraryIndex.GlossaryEntry] {
+        LibraryIndex.glossary(in: meetings, folder: folder)
+    }
+
+    /// Ticks a promise off, in the same list as action items.
+    func setDone(_ promise: LibraryIndex.Promise, done: Bool) {
+        guard let meeting = meetings.first(where: { $0.id == promise.ref.meetingID }) else { return }
+        perform { try store.save(meeting.settingActionItem(promise.commitment.task, done: done)) }
+    }
+
+    /// The meeting before this one in its series, if it has one.
+    func previous(to meeting: Meeting) -> Meeting? {
+        LibraryIndex.previous(
+            title: meeting.title, attendees: meeting.attendees ?? [], before: meeting.startedAt,
+            in: meetings)
+    }
+
+    /// Re-reads summaries and promises for meetings saved before insights
+    /// existed. One model call each, so it runs only when asked.
+    func analyzeOlderMeetings() async -> String {
+        let missing = meetings.filter { $0.insights == nil && $0.enhancedNotes != nil }
+        var done = 0
+        for meeting in missing {
+            let models: [any NoteWritingModel] = [settings.writingModel, FoundationModelsEngine()]
+            for model in models where model.availability == .available {
+                if let insights = try? await InsightExtractor(model: model).insights(for: meeting) {
+                    var updated = meeting
+                    updated.insights = insights
+                    try? store.save(updated)
+                    done += 1
+                    break
+                }
+            }
+        }
+        reload()
+        return missing.isEmpty ? "Every meeting is already analysed." : "Analysed \(done) of \(missing.count) meetings."
+    }
 
     func template(id: String) -> NoteTemplate { NoteTemplate.named(id, among: templates) }
 
@@ -163,17 +211,12 @@ final class MeetingLibrary {
         perform { try store.save(updated) }
     }
 
-    /// Meetings whose title, notes, transcript or attendees mention every word
-    /// of `query`, in any form.
+    /// Meetings matching a plain-English search: "with Janet last month",
+    /// "hiring about salary". See `MeetingQuery`.
     func meetings(matching query: String) -> [Meeting] {
         guard !query.trimmed.isEmpty else { return meetings }
-        return meetings.filter { meeting in
-            let text = [
-                meeting.title, meeting.roughNotes, meeting.enhancedNotes ?? "",
-                meeting.transcript.formatted(), (meeting.attendees ?? []).joined(separator: " "),
-            ].joined(separator: " ")
-            return SearchTerms.text(text, matchesQuery: query)
-        }
+        let parsed = MeetingQuery.parse(query, folders: allFolders)
+        return meetings.filter(parsed.matches)
     }
 
     func createFolder(named name: String) {
@@ -398,6 +441,13 @@ private struct MeetingRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(meeting.title).lineLimit(1)
+            if !meeting.resolvedInsights.summary.isEmpty {
+                Text(meeting.resolvedInsights.summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .help(meeting.resolvedInsights.summary)
+            }
             HStack(spacing: 6) {
                 Text(meeting.startedAt, format: .dateTime.day().month().hour().minute())
                 if meeting.duration >= 60 {
@@ -525,6 +575,10 @@ struct MeetingDetailView: View {
             .padding(.horizontal, 20)
             .padding(.top, 16)
             .padding(.bottom, 10)
+
+            MeetingOverview(meeting: meeting, previous: library.previous(to: meeting))
+                .padding(.horizontal, 20)
+                .padding(.bottom, 10)
 
             if let conflicts = meeting.noteConflicts, !conflicts.isEmpty {
                 Button {
@@ -733,6 +787,14 @@ struct MeetingDetailView: View {
                             .fill(
                                 highlightedSegment == segment.id
                                     ? Color.grove.opacity(0.18) : .clear))
+                    .contextMenu {
+                        Button("Copy as Quote") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(
+                                meeting.quote(segment.text, speaker: segment.speaker, at: segment.start),
+                                forType: .string)
+                        }
+                    }
                     .id(segment.id)
                 }
             }
@@ -794,6 +856,53 @@ struct MeetingDetailView: View {
                         segment.text)
                 }
                 .joined(separator: "\n")
+        }
+    }
+}
+
+/// The top of a meeting: what it came to in a sentence, and — for a meeting in
+/// a series — what changed since the last one.
+private struct MeetingOverview: View {
+    let meeting: Meeting
+    let previous: Meeting?
+
+    var body: some View {
+        let insights = meeting.resolvedInsights
+        let changes = previous.map { LibraryIndex.changes(from: $0, to: meeting) }
+
+        if !insights.summary.isEmpty || (changes.map { !$0.isEmpty } ?? false) {
+            VStack(alignment: .leading, spacing: 10) {
+                if !insights.summary.isEmpty {
+                    Text(insights.summary)
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let changes, let previous, !changes.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("SINCE “\(previous.title.uppercased())” ON \(previous.startedAt.formatted(.dateTime.month().day()).uppercased())")
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        ForEach(changes.newDecisions, id: \.self) { decision in
+                            Label(decision, systemImage: "plus.circle").font(.caption)
+                        }
+                        ForEach(changes.settledQuestions, id: \.self) { question in
+                            Label("Settled: \(question)", systemImage: "checkmark.circle")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        }
+                        ForEach(changes.stillOpen, id: \.self) { commitment in
+                            Label(
+                                "Still open: \(commitment.owner.isEmpty ? "" : commitment.owner + " — ")\(commitment.task)",
+                                systemImage: "clock")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.quaternary.opacity(0.2), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
     }
 }

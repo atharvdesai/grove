@@ -22,9 +22,6 @@ struct HomeView: View {
     @Binding var selection: Meeting.ID?
 
     @ViewState private var checks: [SystemCheck] = []
-    @ViewState private var showingChat = false
-    @ViewState private var showingActionItems = false
-    @ViewState private var showingDigest = false
 
     var body: some View {
         ScrollView {
@@ -47,15 +44,27 @@ struct HomeView: View {
                         ActionCard(
                             icon: "bubble.left.and.bubble.right", title: "Ask",
                             detail: "Anything across your meetings"
-                        ) { showingChat = true }
+                        ) { AppSheet.chat.show() }
                         ActionCard(
                             icon: "checklist", title: "Action items",
                             detail: openItemsLabel
-                        ) { showingActionItems = true }
+                        ) { AppSheet.actionItems.show() }
+                        ActionCard(
+                            icon: "hourglass", title: "Waiting on",
+                            detail: waitingLabel
+                        ) { AppSheet.waiting.show() }
+                        ActionCard(
+                            icon: "person.2", title: "People",
+                            detail: "Who you meet and what's owed"
+                        ) { AppSheet.people.show() }
+                        ActionCard(
+                            icon: "checkmark.seal", title: "Decisions",
+                            detail: "Every decision, current first"
+                        ) { AppSheet.decisions.show() }
                         ActionCard(
                             icon: "calendar", title: "This week",
                             detail: "Decisions and what changed"
-                        ) { showingDigest = true }
+                        ) { AppSheet.digest.show() }
                         ActionCard(
                             icon: "square.and.pencil", title: "Quick notes",
                             detail: "\(QuickNotesShortcut.label) from any app"
@@ -75,9 +84,6 @@ struct HomeView: View {
             .padding(.horizontal, 32)
             .padding(.top, 28)
         }
-        .sheet(isPresented: $showingChat) { ChatView() }
-        .sheet(isPresented: $showingActionItems) { ActionItemsView() }
-        .sheet(isPresented: $showingDigest) { DigestView() }
         .task { checks = await Diagnostics.all() }
         // Coming back from System Settings should reflect what changed there.
         .onReceive(
@@ -115,6 +121,11 @@ struct HomeView: View {
         let name = settings.userName.trimmed.isEmpty
             ? (google.account?.firstName ?? "") : settings.userName.trimmed
         return name.isEmpty ? part : "\(part), \(name)"
+    }
+
+    private var waitingLabel: String {
+        let count = library.waitingOn.count
+        return count == 0 ? "Nobody owes you anything" : "\(count) promised to you"
     }
 
     private var openItemsLabel: String {

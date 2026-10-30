@@ -25,6 +25,8 @@ final class GoogleConnection {
     @ObservationIgnored private var authSession: ASWebAuthenticationSession?
     @ObservationIgnored private var anchor: AuthAnchor?
     @ObservationIgnored private var poller: Task<Void, Never>?
+    /// The library, for the Friday digest. Set by the app.
+    @ObservationIgnored var meetingsProvider: (@MainActor () -> [Meeting])?
 
     private static let accountKey = "googleAccount"
 
@@ -144,12 +146,34 @@ final class GoogleConnection {
         poller = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.refreshEvents()
+                await self?.sendWeeklyDigestIfDue()
                 try? await Task.sleep(for: .seconds(300))
             }
         }
     }
 
     // MARK: - Gmail
+
+    /// Friday from 4pm, once a week: "This week" to the user's own inbox.
+    private func sendWeeklyDigestIfDue() async {
+        guard settings.weeklyDigestEmail, let account, let meetings = meetingsProvider?() else { return }
+        let calendar = Calendar.current
+        let now = Date()
+        guard calendar.component(.weekday, from: now) == 6, calendar.component(.hour, from: now) >= 16
+        else { return }
+        let week = "\(calendar.component(.yearForWeekOfYear, from: now))-\(calendar.component(.weekOfYear, from: now))"
+        let key = "lastDigestWeek"
+        guard UserDefaults.standard.string(forKey: key) != week else { return }
+        let recent = MeetingDigest.meetings(meetings)
+        guard !recent.isEmpty else { return }
+        // Marked before writing, so a slow or failed run never sends twice.
+        UserDefaults.standard.set(week, forKey: key)
+        guard let digest = try? await MeetingDigest(model: settings.writingModel).write(for: recent)
+        else { return }
+        try? await send(SummaryEmail(
+            to: [account.email], subject: "Your week in meetings",
+            markdown: digest + "\n\n—\nWritten by Grove from this week's notes."))
+    }
 
     func send(_ email: SummaryEmail) async throws {
         try await Gmail.send(email, accessToken: try await accessToken())

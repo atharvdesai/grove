@@ -1,3 +1,4 @@
+import CoreSpotlight
 import GroveKit
 import SwiftUI
 
@@ -67,7 +68,13 @@ struct GroveApp: App {
         let library = MeetingLibrary(settings: settings)
         let google = GoogleConnection(settings: settings)
         session.calendarLookup = { google.currentEvent() }
-        session.onSaved = { google.meetingSaved($0) }
+        session.onSaved = { meeting in
+            google.meetingSaved(meeting)
+            if settings.remindAboutPromises {
+                CommitmentReminders.schedule(for: meeting, myName: settings.userName)
+            }
+        }
+        google.meetingsProvider = { library.meetings }
         _google = State(initialValue: google)
         _quickNotes = State(initialValue: QuickNotesController(session: session))
         _settings = State(initialValue: settings)
@@ -120,6 +127,9 @@ struct GroveApp: App {
                 .keyboardShortcut("p", modifiers: [.command, .shift])
                 .disabled(!session.isRecording)
 
+                Button("Go to…") { AppSheet.palette.show() }
+                    .keyboardShortcut("k")
+
                 // The real shortcut is the global ⌃⌥N hot key, which works from
                 // any app; this entry is how people find out it exists.
                 Button("Quick Notes  \(QuickNotesShortcut.label)") {
@@ -164,6 +174,8 @@ struct GroveApp: App {
 extension Notification.Name {
     static let newMeeting = Notification.Name("app.grove.newMeeting")
     static let toggleQuickNotes = Notification.Name("app.grove.toggleQuickNotes")
+    /// userInfo "sheet": an `AppSheet` raw value.
+    static let showAppSheet = Notification.Name("app.grove.showAppSheet")
     /// Posted by chat citations. userInfo: "meetingID" (UUID), "time"
     /// (TimeInterval) — the transcript moment to open.
     static let navigateToMeeting = Notification.Name("app.grove.navigateToMeeting")
@@ -223,6 +235,7 @@ struct RootView: View {
     @ViewState private var selection: Meeting.ID?
     @ViewState private var showingNewMeeting = false
     @ViewState private var transcriptSeek: TranscriptSeek?
+    @ViewState private var appSheet: AppSheet?
 
     var body: some View {
         NavigationSplitView {
@@ -257,6 +270,34 @@ struct RootView: View {
         }
         .sheet(isPresented: $showingNewMeeting) {
             NewMeetingSheet()
+        }
+        .sheet(item: $appSheet) { sheet in
+            switch sheet {
+            case .chat: ChatView()
+            case .actionItems: ActionItemsView()
+            case .digest: DigestView()
+            case .palette: CommandPalette()
+            case .people: InsightsView(tab: .people)
+            case .decisions: InsightsView(tab: .decisions)
+            case .waiting: InsightsView(tab: .waiting)
+            case .questions: InsightsView(tab: .questions)
+            case .glossary: InsightsView(tab: .glossary)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .showAppSheet)) { note in
+            guard let raw = note.userInfo?["sheet"] as? String, let sheet = AppSheet(rawValue: raw)
+            else { return }
+            // One sheet at a time: close whatever is up, then open the new one.
+            if appSheet != nil {
+                appSheet = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { appSheet = sheet }
+            } else {
+                appSheet = sheet
+            }
+        }
+        .onContinueUserActivity(CSSearchableItemActionType) { activity in
+            guard let id = SpotlightIndex.meetingID(from: activity) else { return }
+            selection = id
         }
         .alert(
             "Something went wrong",

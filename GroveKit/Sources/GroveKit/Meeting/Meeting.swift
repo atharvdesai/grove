@@ -50,6 +50,9 @@ public struct Meeting: Codable, Sendable, Identifiable, Equatable {
     /// user to keep or fix. Cleared as each is answered.
     public var noteConflicts: [NoteConflict]?
 
+    /// Summary, decisions, promises, questions and terms. See `MeetingInsights`.
+    public var insights: MeetingInsights?
+
     public init(
         id: UUID = UUID(),
         title: String,
@@ -66,7 +69,8 @@ public struct Meeting: Codable, Sendable, Identifiable, Equatable {
         completedActionItems: [String]? = nil,
         inPerson: Bool? = nil,
         polishedNotes: String? = nil,
-        noteConflicts: [NoteConflict]? = nil
+        noteConflicts: [NoteConflict]? = nil,
+        insights: MeetingInsights? = nil
     ) {
         self.id = id
         self.title = title
@@ -84,6 +88,7 @@ public struct Meeting: Codable, Sendable, Identifiable, Equatable {
         self.inPerson = inPerson
         self.polishedNotes = polishedNotes
         self.noteConflicts = noteConflicts
+        self.insights = insights
     }
 
     /// Answers a conflict: with `useSuggestion`, the note line is replaced by

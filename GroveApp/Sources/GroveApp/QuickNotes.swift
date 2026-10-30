@@ -12,23 +12,32 @@ final class GlobalHotKey {
     private var hotKey: EventHotKeyRef?
     private var handler: EventHandlerRef?
     private let action: @MainActor () -> Void
+    /// Tells this shortcut's presses apart from Grove's other shortcuts: every
+    /// handler sees every hot key, so each checks the ID and passes on the rest.
+    private let identifier: UInt32
 
-    init(keyCode: Int, modifiers: Int, action: @escaping @MainActor () -> Void) {
+    init(id: UInt32, keyCode: Int, modifiers: Int, action: @escaping @MainActor () -> Void) {
         self.action = action
+        self.identifier = id
         var spec = EventTypeSpec(
             eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         let context = Unmanaged.passUnretained(self).toOpaque()
         InstallEventHandler(
             GetApplicationEventTarget(),
-            { _, _, context in
-                guard let context else { return noErr }
+            { _, event, context in
+                guard let context, let event else { return OSStatus(eventNotHandledErr) }
+                var pressed = EventHotKeyID()
+                GetEventParameter(
+                    event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
+                    nil, MemoryLayout<EventHotKeyID>.size, nil, &pressed)
                 let hotKey = Unmanaged<GlobalHotKey>.fromOpaque(context).takeUnretainedValue()
+                guard pressed.id == hotKey.identifier else { return OSStatus(eventNotHandledErr) }
                 Task { @MainActor in hotKey.action() }
                 return noErr
             }, 1, &spec, context, &handler)
-        let id = EventHotKeyID(signature: OSType(0x4752_5645), id: 1)  // "GRVE"
+        let hotKeyID = EventHotKeyID(signature: OSType(0x4752_5645), id: id)  // "GRVE"
         RegisterEventHotKey(
-            UInt32(keyCode), UInt32(modifiers), id, GetApplicationEventTarget(), 0, &hotKey)
+            UInt32(keyCode), UInt32(modifiers), hotKeyID, GetApplicationEventTarget(), 0, &hotKey)
     }
 
     deinit {
@@ -62,13 +71,18 @@ final class QuickNotesController {
     private var panel: NSPanel?
     private let session: MeetingSession
     private var hotKey: GlobalHotKey?
+    /// ⌃⌥O, off the record. Lives here with the other global shortcut.
+    private var offRecordKey: GlobalHotKey?
     private var observer: NSObjectProtocol?
 
     init(session: MeetingSession) {
         self.session = session
         hotKey = GlobalHotKey(
-            keyCode: QuickNotesShortcut.keyCode, modifiers: QuickNotesShortcut.modifiers
+            id: 1, keyCode: QuickNotesShortcut.keyCode, modifiers: QuickNotesShortcut.modifiers
         ) { [weak self] in self?.toggle() }
+        offRecordKey = GlobalHotKey(
+            id: 2, keyCode: kVK_ANSI_O, modifiers: controlKey | optionKey
+        ) { [session] in session.toggleOffRecord() }
         // The recording pill and the menu bar ask for the notepad this way, so
         // neither has to hold a reference to it.
         observer = NotificationCenter.default.addObserver(

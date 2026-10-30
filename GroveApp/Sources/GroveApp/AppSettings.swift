@@ -75,6 +75,8 @@ final class AppSettings {
         static let emailSummaries = "emailSummaries"
         static let userName = "userName"
         static let aiEngine = "aiEngine"
+        static let remindAboutPromises = "remindAboutPromises"
+        static let weeklyDigestEmail = "weeklyDigestEmail"
     }
 
     private let defaults: UserDefaults
@@ -144,6 +146,16 @@ final class AppSettings {
         didSet { defaults.set(aiEngine.rawValue, forKey: Key.aiEngine) }
     }
 
+    /// Notify the afternoon before something you promised is due.
+    var remindAboutPromises: Bool {
+        didSet { defaults.set(remindAboutPromises, forKey: Key.remindAboutPromises) }
+    }
+
+    /// Email "This week" to yourself on Friday afternoons.
+    var weeklyDigestEmail: Bool {
+        didSet { defaults.set(weeklyDigestEmail, forKey: Key.weeklyDigestEmail) }
+    }
+
     /// Where Claude Code is installed, if it is. Not persisted: re-found each
     /// launch, and on demand from Settings after installing it.
     private(set) var claudeExecutable: URL? = ClaudeCodeEngine.located
@@ -178,6 +190,8 @@ final class AppSettings {
         self.emailSummaries = defaults.object(forKey: Key.emailSummaries) as? Bool ?? true
         self.userName = defaults.string(forKey: Key.userName) ?? ""
         self.aiEngine = AIEngine(rawValue: defaults.string(forKey: Key.aiEngine) ?? "") ?? .onDevice
+        self.remindAboutPromises = defaults.object(forKey: Key.remindAboutPromises) as? Bool ?? true
+        self.weeklyDigestEmail = defaults.bool(forKey: Key.weeklyDigestEmail)
         if hasCompletedOnboarding { setUpOpenAtLoginOnce() }
     }
 

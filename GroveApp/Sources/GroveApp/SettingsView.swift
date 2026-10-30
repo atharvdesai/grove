@@ -139,6 +139,8 @@ private struct AccountSettings: View {
                 }
                 Toggle("Email me the notes when a meeting ends", isOn: $settings.emailSummaries)
                     .disabled(!google.isSignedIn)
+                Toggle("Email me “This week” on Friday afternoons", isOn: $settings.weeklyDigestEmail)
+                    .disabled(!google.isSignedIn)
                 TextField("Your first name", text: $settings.userName)
             } footer: {
                 Text(
@@ -188,6 +190,7 @@ private struct GeneralSettings: View {
                 Toggle("Name and file meetings automatically", isOn: $settings.autoOrganize)
                 Toggle("Open Grove at login", isOn: $settings.openAtLogin)
                 Toggle("Use my calendar to name meetings", isOn: calendarBinding)
+                Toggle("Remind me before things I promised are due", isOn: $settings.remindAboutPromises)
             } footer: {
                 Text(
                     "Grove notices Zoom, Teams, Meet in your browser, FaceTime, Slack and "

@@ -40,6 +40,15 @@ final class MeetingSession {
     private(set) var meetingApp: String?
     /// A lecture or a meeting round a table: microphone only, no call audio.
     var inPerson = false
+
+    /// Stretches marked off the record. Removed from the transcript before
+    /// anything is written, saved, emailed or indexed.
+    private(set) var offRecordSpans: [OffRecordSpan] = []
+    var isOffRecord: Bool { offRecordSpans.last.map { $0.end == .infinity } ?? false }
+
+    /// The last meeting in this one's series, when there is one — the source
+    /// of "From last time" and of the folder and template it reuses.
+    private(set) var previousInSeries: Meeting?
     /// The calendar event this recording matched, when calendar use is on.
     private(set) var calendarEvent: CalendarEvent?
 
@@ -129,6 +138,8 @@ final class MeetingSession {
         lastSaved = nil
         segments = []
         elapsed = 0
+        offRecordSpans = []
+        continueSeries()
 
         let recorder = MeetingRecorder()
         recorder.inPerson = inPerson
@@ -182,7 +193,8 @@ final class MeetingSession {
         ticker?.cancel()
         ticker = nil
 
-        let captured = await recorder.stop()
+        closeOffRecord(at: recorder.elapsed)
+        let captured = (await recorder.stop()).removing(offRecordSpans)
         self.recorder = nil
 
         // A resumed session records from zero again, so shift it past what the
@@ -270,6 +282,13 @@ final class MeetingSession {
             errorMessage = "The writing model is unavailable (\(reason)).\n\nYour transcript and notes are saved."
         }
 
+        // Summary, decisions, promises, questions, terms — what the rest of the
+        // app reads. Notes alone are the floor if the model can't run.
+        if !transcript.isEmpty || !roughNotes.trimmed.isEmpty {
+            phase = .enhancing
+            meeting.insights = await extractInsights(meeting)
+        }
+
         // Ask about notes the transcript contradicts, while the meeting is
         // still fresh enough to remember which is right.
         if !roughNotes.trimmed.isEmpty, !transcript.isEmpty {
@@ -301,6 +320,8 @@ final class MeetingSession {
         meetingApp = nil
         calendarEvent = nil
         inPerson = false
+        offRecordSpans = []
+        previousInSeries = nil
         resuming = nil
         templateID = settings.defaultTemplateID
         return meeting
@@ -329,6 +350,61 @@ final class MeetingSession {
                 roughNotes: roughNotes, transcript: transcript, template: template,
                 meetingTitle: title)
         }
+    }
+
+    // MARK: - Off the record
+
+    /// Starts or ends an off-the-record stretch at the current point in the
+    /// recording.
+    func toggleOffRecord() {
+        guard let recorder, isRecording else { return }
+        if isOffRecord {
+            closeOffRecord(at: recorder.elapsed)
+        } else {
+            offRecordSpans.append(OffRecordSpan(start: recorder.elapsed, end: .infinity))
+        }
+        refreshSegments()
+    }
+
+    private func closeOffRecord(at time: TimeInterval) {
+        guard isOffRecord, let index = offRecordSpans.indices.last else { return }
+        offRecordSpans[index].end = time
+    }
+
+    // MARK: - Recurring meetings
+
+    /// For a meeting that continues a series — same title, or the same people
+    /// on the calendar invite — start from last time's open items, and file it
+    /// where the series lives unless the user chose otherwise.
+    private func continueSeries() {
+        previousInSeries = nil
+        guard resuming == nil else { return }
+        let past = (try? store.list()) ?? []
+        guard
+            let previous = LibraryIndex.previous(
+                title: title, attendees: calendarEvent?.attendees ?? [], before: Date(), in: past)
+        else { return }
+        previousInSeries = previous
+        if roughNotes.trimmed.isEmpty {
+            roughNotes = LibraryIndex.carryOver(from: previous)
+        }
+        if folderIsAutomatic, folder == nil, let theirs = previous.folder {
+            folder = theirs
+            folderIsAutomatic = false
+        }
+        if templateID == settings.defaultTemplateID {
+            templateID = previous.templateID
+        }
+    }
+
+    private func extractInsights(_ meeting: Meeting) async -> MeetingInsights {
+        let models: [any NoteWritingModel] = [settings.writingModel, FoundationModelsEngine()]
+        for model in models where model.availability == .available {
+            if let insights = try? await InsightExtractor(model: model).insights(for: meeting) {
+                return insights
+            }
+        }
+        return InsightExtractor.fromNotes(meeting)
     }
 
     /// Best effort: a check that can't run just finds nothing to ask about.
@@ -388,7 +464,7 @@ final class MeetingSession {
 
     private func refreshSegments() {
         guard let recorder else { return }
-        let live = recorder.currentTranscript()
+        let live = recorder.currentTranscript().removing(offRecordSpans)
         // Show what the meeting already had above the new audio, so a resumed
         // session reads as a continuation rather than starting from a blank panel.
         segments = (resuming.map { $0.transcript.appending(live) } ?? live).segments
