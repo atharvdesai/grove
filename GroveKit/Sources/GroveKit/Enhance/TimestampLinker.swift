@@ -73,11 +73,12 @@ public enum TimestampLinker {
         guard parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy(\.isNumber) }) else { return nil }
         let numbers = parts.compactMap(Int.init)
         guard numbers.count == parts.count else { return nil }
-        switch numbers {
-        case [let minutes, let seconds] where seconds < 60:
-            return TimeInterval(minutes * 60 + seconds)
-        case [let hours, let minutes, let seconds] where minutes < 60 && seconds < 60:
-            return TimeInterval(hours * 3600 + minutes * 60 + seconds)
+        // Swift has no array patterns, so match on the count instead.
+        switch numbers.count {
+        case 2 where numbers[1] < 60:
+            return TimeInterval(numbers[0] * 60 + numbers[1])
+        case 3 where numbers[1] < 60 && numbers[2] < 60:
+            return TimeInterval(numbers[0] * 3600 + numbers[1] * 60 + numbers[2])
         default:
             return nil
         }
