@@ -196,15 +196,16 @@ public enum GoogleOAuth {
 enum GoogleHTTP {
     /// Sends a request and decodes the JSON reply, turning Google's error
     /// bodies into a message a person can act on.
+    private struct Failure: Decodable {
+        struct Detail: Decodable { let message: String? }
+        let error: Detail?
+        let error_description: String?
+    }
+
     static func decode<T: Decodable>(_ request: URLRequest) async throws -> T {
         let (data, response) = try await URLSession.shared.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200..<300).contains(status) else {
-            struct Failure: Decodable {
-                struct Detail: Decodable { let message: String? }
-                let error: Detail?
-                let error_description: String?
-            }
             let failure = try? JSONDecoder().decode(Failure.self, from: data)
             let message = failure?.error?.message ?? failure?.error_description ?? "HTTP \(status)"
             throw GoogleError.server("Google: \(message)")
