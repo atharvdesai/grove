@@ -83,8 +83,7 @@ hand on a real Mac and say so in the PR. The minimum:
 
 ## Before you touch the audio code
 
-Read [HANDOFF.md](HANDOFF.md), particularly "Hard-won gotchas". Every failure
-mode in this pipeline returns success. A dead tap, a muted mic, a wrong buffer
+Every failure mode in this pipeline returns success. A dead tap, a muted mic, a wrong buffer
 layout, and a perfectly healthy system are indistinguishable unless you look at
 signal levels and callback counts. Several of these cost hours each:
 
