@@ -50,10 +50,9 @@ open it, and drag Grove into Applications.
 brew install --cask atharvdesai/grove/grove
 ```
 
-> **First launch of the download.** Early builds aren't signed by Apple yet,
-> so macOS may say it can't verify Grove. Open **System Settings → Privacy &
-> Security**, scroll down, and click **Open Anyway** — once. (Homebrew installs
-> skip this.)
+> **First launch, either install route.** Early builds aren't signed by
+> Apple yet, so macOS may say it can't verify Grove. Open **System Settings →
+> Privacy & Security**, scroll down, and click **Open Anyway** — once.
 
 Then press **⌃⌥N** in any app for quick notes, join a call, and Grove will
 offer to take notes.

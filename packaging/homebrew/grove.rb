@@ -16,13 +16,10 @@ cask "grove" do
 
   app "Grove.app"
 
-  # Until Grove is signed with a Developer ID, macOS would block the first
-  # launch of a downloaded copy. Installing through Homebrew is the user's
-  # explicit choice to trust it, so the download flag is cleared here.
-  postflight do
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/Grove.app"]
-  end
+  # Early builds are not signed with a Developer ID, so macOS Gatekeeper
+  # blocks the first launch. Approve it once: System Settings ->
+  # Privacy & Security -> Open Anyway. Grove does not strip the quarantine
+  # flag for you.
 
   zap trash: [
     "~/Library/Preferences/app.grove.Grove.plist",
