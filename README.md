@@ -110,6 +110,16 @@ grove detect        # which call apps Grove sees using the microphone
 grove debug-audio   # when a recording comes back empty
 ```
 
+### Sample meetings
+
+To try chat without recording anything, load nine invented meetings — a
+pricing decision that later changes, a customer rollout, a hiring loop, a 1:1:
+
+```bash
+./scripts/load-sample-meetings.py            # add them, then reopen Grove
+./scripts/load-sample-meetings.py --remove   # take them out again
+```
+
 ## Repository
 
 - `GroveKit/` — the engine (capture, transcribe, enhance, chat, storage) plus

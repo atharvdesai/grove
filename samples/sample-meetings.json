@@ -1,0 +1,910 @@
+{
+  "meetings": [
+    {
+      "id": "8A4B5B23-4F87-56A7-8DF4-83EFD4A3E60C",
+      "title": "Pricing tiers review",
+      "startedAt": "2026-10-06T15:00:00Z",
+      "roughNotes": "- tiers?\n- annual discount\n- launch date",
+      "transcript": {
+        "segments": [
+          {
+            "id": "9CE58459-C578-56B7-B505-007B4451937B",
+            "speaker": "me",
+            "text": "Okay, let's get into pricing. The goal today is to lock the tiers so marketing can start on the launch page.",
+            "start": 4.0,
+            "end": 12.1
+          },
+          {
+            "id": "2510DF6E-6779-5724-88CE-8CC46ABB00AF",
+            "speaker": "them",
+            "text": "Sure. Priya here. I've got the competitor sheet open. Most of them land between $15 and $20 for the individual plan.",
+            "start": 13.3,
+            "end": 21.4
+          },
+          {
+            "id": "6C63B6D4-C5E8-5258-8AD3-90B0A1FB4518",
+            "speaker": "me",
+            "text": "Right, and we said the free plan stays. 3 meetings a week, transcripts only, no enhanced notes.",
+            "start": 22.6,
+            "end": 29.1
+          },
+          {
+            "id": "7805BF0A-2C0D-54A7-9F9D-CB8E540BF440",
+            "speaker": "them",
+            "text": "Marcus. I'd push for Pro at $18 a month. It's below Granola and it covers unlimited meetings and chat.",
+            "start": 30.3,
+            "end": 37.6
+          },
+          {
+            "id": "2D5D8A3D-A9D8-5BDA-91F5-32C1FE4CA586",
+            "speaker": "them",
+            "text": "I agree with $18. For Team I'd do $30 per seat with shared folders and admin controls.",
+            "start": 38.8,
+            "end": 45.3
+          },
+          {
+            "id": "62F4DB4B-2AC0-5848-8E57-B3E838FE7F37",
+            "speaker": "me",
+            "text": "$30 per seat feels right if SSO is included. Is SSO in Team or only Enterprise?",
+            "start": 46.5,
+            "end": 52.7
+          },
+          {
+            "id": "1DDA3BB4-C695-59F0-8317-3F65894DBEB4",
+            "speaker": "them",
+            "text": "Team gets Google sign-in. Okta and SAML SSO stay Enterprise only. That's what Acme will need, by the way.",
+            "start": 53.9,
+            "end": 61.2
+          },
+          {
+            "id": "C8CBC9A0-58FC-54C3-9ED7-3CFEE4998807",
+            "speaker": "me",
+            "text": "Fine. What about the annual discount?",
+            "start": 62.4,
+            "end": 65.4
+          },
+          {
+            "id": "C634D7A3-0AA5-5400-8BD6-6BC5A17E8844",
+            "speaker": "them",
+            "text": "20% off for annual billing. That's standard and finance is happy with it.",
+            "start": 66.6,
+            "end": 71.6
+          },
+          {
+            "id": "F26B3760-8EDF-54A7-ACB5-2EE2A88E2722",
+            "speaker": "me",
+            "text": "Okay, decision: Free stays, Pro at $18 a month, Team at $30 per seat, 20% annual discount.",
+            "start": 72.8,
+            "end": 79.3
+          },
+          {
+            "id": "7D108A3C-811F-5B9A-AC68-2AF77394AC0B",
+            "speaker": "them",
+            "text": "And the launch date? Marketing asked for at least three weeks.",
+            "start": 80.5,
+            "end": 84.7
+          },
+          {
+            "id": "4C6BFAB7-1D83-58FE-9522-02AABF03D563",
+            "speaker": "me",
+            "text": "Let's say November 15th for the pricing launch. Priya, can you own the pricing page copy?",
+            "start": 85.9,
+            "end": 92.1
+          },
+          {
+            "id": "C9BF8BBE-5277-5355-9395-DA345F32921F",
+            "speaker": "them",
+            "text": "Yes, I'll have a draft of the pricing page by Friday the 9th.",
+            "start": 93.3,
+            "end": 98.3
+          },
+          {
+            "id": "854390B6-B524-5B84-8FB5-B1C5B7AD5B49",
+            "speaker": "them",
+            "text": "I'll update Stripe with the new plans and test the upgrade flow. Should be done by the 20th.",
+            "start": 99.5,
+            "end": 106.4
+          },
+          {
+            "id": "BD9F8D95-BCBF-51C3-8309-FBED8C13DEDD",
+            "speaker": "me",
+            "text": "Great. One open question is students. Do we do a student discount?",
+            "start": 107.6,
+            "end": 112.2
+          },
+          {
+            "id": "99D26713-8B31-5226-BD24-4287C85486C5",
+            "speaker": "them",
+            "text": "Let's park it. We don't have data on students yet.",
+            "start": 113.4,
+            "end": 117.2
+          }
+        ]
+      },
+      "templateID": "general",
+      "recordedDuration": 123.4,
+      "endedAt": "2026-10-06T15:02:03Z",
+      "folder": "Product",
+      "enhancedNotes": "## Tiers\n- Free stays: three meetings a week, transcripts only, no enhanced notes (0:22)\n- Pro at $18/month with unlimited meetings and chat (0:30)\n- Team at $30 per seat with shared folders and admin controls (0:38)\n- Okta and SAML SSO are Enterprise only; Team gets Google sign-in (0:53)\n\n## Annual discount\n- 20% off annual billing (1:06)\n\n## Launch date\n- Pricing launch on November 15 (1:25)\n\n## Action items\n- Priya: pricing page draft by Friday, October 9 (1:33)\n- Marcus: new plans in Stripe and upgrade flow tested by October 20 (1:39)\n\n## Open questions\n- Student discount — parked until there is data (1:53)"
+    },
+    {
+      "id": "AC8031B9-0DB1-59D0-A897-5D13ED405F83",
+      "title": "Acme onboarding kickoff",
+      "startedAt": "2026-10-08T17:30:00Z",
+      "roughNotes": "- seats\n- SSO\n- budget\n- data residency",
+      "transcript": {
+        "segments": [
+          {
+            "id": "6620B48C-D952-57DF-8E7F-BC4FB97F80AF",
+            "speaker": "me",
+            "text": "Thanks for making the time, Janet. Let's walk through the rollout plan for Acme.",
+            "start": 4.0,
+            "end": 9.4
+          },
+          {
+            "id": "502900AE-8540-5FF9-9C89-1FBF0FD790EE",
+            "speaker": "them",
+            "text": "Happy to. So we're planning to start with the sales team, that's about 120 seats.",
+            "start": 10.6,
+            "end": 16.4
+          },
+          {
+            "id": "C3C61BF4-E650-5BE7-9B90-C6E24AFF3AA9",
+            "speaker": "me",
+            "text": "120 seats on the Team plan, okay. Any hard requirements before rollout?",
+            "start": 17.6,
+            "end": 22.2
+          },
+          {
+            "id": "4A23E338-297F-5123-9E6E-D3FC4A4A7E1A",
+            "speaker": "them",
+            "text": "Two. First, SSO through Okta is non-negotiable. Security won't approve anything without it. We need it by December 1st.",
+            "start": 23.4,
+            "end": 30.7
+          },
+          {
+            "id": "43C68322-D6D1-5D97-9961-7AEE7440B9D7",
+            "speaker": "me",
+            "text": "Understood. Okta SSO is on our Enterprise plan and we're finishing the integration now.",
+            "start": 31.9,
+            "end": 37.3
+          },
+          {
+            "id": "1107C2D9-1CE9-5BC4-A325-342BBA5E564F",
+            "speaker": "them",
+            "text": "Second is data residency. Our legal team wants customer data kept in the EU. Is that possible?",
+            "start": 38.5,
+            "end": 45.0
+          },
+          {
+            "id": "288A1E6E-5464-5A78-87C7-8CB8A7EF4261",
+            "speaker": "me",
+            "text": "Honestly, today everything is stored on the user's own Mac, so meeting content never leaves the device. Account data sits in the US right now.",
+            "start": 46.2,
+            "end": 55.8
+          },
+          {
+            "id": "81D14AF5-D955-5EF5-84A3-AD3B7C5FFDF6",
+            "speaker": "them",
+            "text": "That helps a lot. Legal will still ask about account data. Can you put that in writing?",
+            "start": 57.0,
+            "end": 63.5
+          },
+          {
+            "id": "05FFF197-DCE2-5C07-8BF9-46436A727900",
+            "speaker": "me",
+            "text": "Yes, I'll send a data handling document by next Wednesday.",
+            "start": 64.7,
+            "end": 68.5
+          },
+          {
+            "id": "AB60D923-4009-5E45-A31C-586064F93941",
+            "speaker": "them",
+            "text": "Great. On budget, we've set aside $40,000 for the first year.",
+            "start": 69.7,
+            "end": 73.9
+          },
+          {
+            "id": "3A80D571-6C0A-52EA-9D74-471C4B8E1B7F",
+            "speaker": "me",
+            "text": "That works with 120 seats on annual billing. I'll send a formal quote.",
+            "start": 75.1,
+            "end": 80.1
+          },
+          {
+            "id": "8BDC7464-4058-5778-9DA9-4EE1EE1F772F",
+            "speaker": "them",
+            "text": "Also my counterpart in IT is Raj Mehta. He'll handle the Okta side.",
+            "start": 81.3,
+            "end": 86.3
+          },
+          {
+            "id": "6090B57A-4070-5D67-88D3-1D945B4EEE40",
+            "speaker": "me",
+            "text": "Perfect. Next step is an SSO check-in in about two weeks once Raj has the sandbox.",
+            "start": 87.5,
+            "end": 93.7
+          },
+          {
+            "id": "D92CF2D6-E014-5B6F-AE00-AECB24A7B809",
+            "speaker": "them",
+            "text": "Sounds good. Let's do the 20th.",
+            "start": 94.9,
+            "end": 97.9
+          }
+        ]
+      },
+      "templateID": "customer-call",
+      "recordedDuration": 104.1,
+      "endedAt": "2026-10-08T17:31:44Z",
+      "folder": "Acme",
+      "enhancedNotes": "## Account\n- Acme starts with the sales team, about 120 seats (0:10)\n- First-year budget is $40,000 (1:09)\n\n## Requirements\n- Okta SSO is non-negotiable, needed by December 1 (0:23)\n- Legal wants customer data kept in the EU (0:38)\n- Meeting content stays on each Mac; account data is in the US today (0:46)\n\n## Contacts\n- Raj Mehta in IT owns the Okta side (1:21)\n\n## Next steps\n- Send data handling document by next Wednesday (1:04)\n- Send formal quote for 120 seats on annual billing (1:15)\n- SSO check-in on October 20 (1:34)"
+    },
+    {
+      "id": "5115745C-D8B4-5AD2-A515-DECB8192DB78",
+      "title": "Backend engineer debrief: Sam Okafor",
+      "startedAt": "2026-10-09T20:00:00Z",
+      "roughNotes": "- sam okafor\n- strengths / concerns\n- next step",
+      "transcript": {
+        "segments": [
+          {
+            "id": "C3EE424E-0849-5DA6-BF1D-C4963D7FF0D5",
+            "speaker": "me",
+            "text": "Okay, debrief for Sam Okafor, the backend candidate. Leo, you did the Postgres round?",
+            "start": 4.0,
+            "end": 9.4
+          },
+          {
+            "id": "8C2A61D2-9498-53CA-8362-3C5D0B909DE0",
+            "speaker": "them",
+            "text": "Yeah. Sam was excellent on Postgres. Query plans, indexing, he spotted the missing index in about two minutes.",
+            "start": 10.6,
+            "end": 17.5
+          },
+          {
+            "id": "E9299449-8C38-5A9B-A13B-A4F36E73BF13",
+            "speaker": "them",
+            "text": "Dana here. The system design round was weaker. He designed the sync service without thinking about offline clients until I prompted him.",
+            "start": 18.7,
+            "end": 27.2
+          },
+          {
+            "id": "EC277DD9-CEF3-57B5-997C-08603B122907",
+            "speaker": "me",
+            "text": "Was it a gap in knowledge or just nerves?",
+            "start": 28.4,
+            "end": 31.9
+          },
+          {
+            "id": "DF1F6B0C-CE54-5675-8BB1-EF68BE63D446",
+            "speaker": "them",
+            "text": "Probably nerves. Once I pointed it out he came up with a decent conflict resolution approach.",
+            "start": 33.1,
+            "end": 39.3
+          },
+          {
+            "id": "AACB207C-7E88-5C27-8235-83893C5CA158",
+            "speaker": "me",
+            "text": "Culture and communication?",
+            "start": 40.5,
+            "end": 43.5
+          },
+          {
+            "id": "C5FC9BAA-9165-5373-B8FE-338BC9EF62B7",
+            "speaker": "them",
+            "text": "Really good. Clear communicator and he asked sharp questions about how we keep everything local.",
+            "start": 44.7,
+            "end": 50.5
+          },
+          {
+            "id": "7105A04B-6866-5FD5-B426-A7F261816FDF",
+            "speaker": "me",
+            "text": "Okay. My read is strong yes on technical depth, small concern on system design. Let's move him to the final round.",
+            "start": 51.7,
+            "end": 59.8
+          },
+          {
+            "id": "69C5843B-6EC7-5448-952F-14A231F597BE",
+            "speaker": "them",
+            "text": "Agreed. For the final round let's do a deeper system design session with Marcus.",
+            "start": 61.0,
+            "end": 66.4
+          },
+          {
+            "id": "363E58BC-A7E4-5AAF-B026-AD29C85DA4AE",
+            "speaker": "me",
+            "text": "And for the offer band, we budgeted $165,000 to $180,000 for this role.",
+            "start": 67.6,
+            "end": 72.6
+          },
+          {
+            "id": "AC717D06-41B3-50C0-939D-EED88D0EA3E0",
+            "speaker": "them",
+            "text": "If he does well in the final, I'd go toward the top of the band. Competing offers are likely.",
+            "start": 73.8,
+            "end": 81.1
+          },
+          {
+            "id": "92F945C7-9EF3-53C3-A2C3-2549033255B1",
+            "speaker": "me",
+            "text": "Decision: Sam moves to the final round, system design with Marcus. Leo, can you schedule it?",
+            "start": 82.3,
+            "end": 88.5
+          },
+          {
+            "id": "32772088-99F6-5BAE-8F0B-C5DD64A35110",
+            "speaker": "them",
+            "text": "Yes, I'll get it on the calendar for the week of the 19th.",
+            "start": 89.7,
+            "end": 94.7
+          }
+        ]
+      },
+      "templateID": "general",
+      "recordedDuration": 100.9,
+      "endedAt": "2026-10-09T20:01:40Z",
+      "folder": "Hiring"
+    },
+    {
+      "id": "AED6BEF1-4C54-5ABE-A334-92F2B4761798",
+      "title": "Weekly standup",
+      "startedAt": "2026-10-13T14:00:00Z",
+      "roughNotes": "",
+      "transcript": {
+        "segments": [
+          {
+            "id": "7C96F098-1BF9-56F4-AF44-6BF058C8295D",
+            "speaker": "me",
+            "text": "Morning everyone. Quick round. Marcus?",
+            "start": 4.0,
+            "end": 7.0
+          },
+          {
+            "id": "63943F84-225A-538C-B77E-4EBED3C2689F",
+            "speaker": "them",
+            "text": "Stripe plans are in test mode. The upgrade flow works, downgrade has a proration bug I'm fixing today.",
+            "start": 8.2,
+            "end": 15.1
+          },
+          {
+            "id": "533AF11E-E35D-5430-A94C-575B5187CB32",
+            "speaker": "me",
+            "text": "Priya?",
+            "start": 16.3,
+            "end": 19.3
+          },
+          {
+            "id": "D0F0216B-12BB-5C9A-AB83-7AD327D06B14",
+            "speaker": "them",
+            "text": "Pricing page draft is done and in review. Also heads up, I'm out this Friday.",
+            "start": 20.5,
+            "end": 26.3
+          },
+          {
+            "id": "39745E26-0127-534E-8E60-B04F7C42331A",
+            "speaker": "me",
+            "text": "Leo?",
+            "start": 27.5,
+            "end": 30.5
+          },
+          {
+            "id": "40EE471E-050B-56AB-9881-A7C9CB43DE4F",
+            "speaker": "them",
+            "text": "Working on the Okta SSO integration. I'm blocked on the Okta sandbox, Acme's IT hasn't sent credentials yet.",
+            "start": 31.7,
+            "end": 38.6
+          },
+          {
+            "id": "0D93C3E2-542B-5DE2-B867-0F16BEC92476",
+            "speaker": "me",
+            "text": "I'll ping Janet and Raj Mehta about the sandbox today.",
+            "start": 39.8,
+            "end": 43.6
+          },
+          {
+            "id": "EEC7DBED-B2ED-5375-A077-76B7A8BEB79B",
+            "speaker": "them",
+            "text": "Dana here. Release 2.4 is slipping. The transcript export bug is bigger than we thought. New target is October 22nd.",
+            "start": 44.8,
+            "end": 52.5
+          },
+          {
+            "id": "602E69EC-A2BA-5B9D-8FAF-1534F2C82198",
+            "speaker": "me",
+            "text": "Okay, 2.4 moves to the 22nd. Anything else blocking?",
+            "start": 53.7,
+            "end": 57.2
+          },
+          {
+            "id": "680CBA3C-A8F6-545F-BD99-75F96D91EC49",
+            "speaker": "them",
+            "text": "Nope, that's it.",
+            "start": 58.4,
+            "end": 61.4
+          }
+        ]
+      },
+      "templateID": "standup",
+      "recordedDuration": 67.6,
+      "endedAt": "2026-10-13T14:01:07Z"
+    },
+    {
+      "id": "AC05670C-B3D1-5FC8-B56D-D05EE9AF8FA9",
+      "title": "Pricing follow-up",
+      "startedAt": "2026-10-15T15:00:00Z",
+      "roughNotes": "- churn data\n- revisit pro price",
+      "transcript": {
+        "segments": [
+          {
+            "id": "2C1DC475-A481-5803-AF77-5A96B18EF1F5",
+            "speaker": "me",
+            "text": "We're revisiting pricing because of the churn data Marcus pulled. Marcus, go ahead.",
+            "start": 4.0,
+            "end": 9.0
+          },
+          {
+            "id": "FAE013B5-175A-5666-B9D8-194DAFC188B6",
+            "speaker": "them",
+            "text": "So in the beta survey, users who'd pay at $18 churned about twice as fast as users at $15. $16 looks like the sweet spot.",
+            "start": 10.2,
+            "end": 19.8
+          },
+          {
+            "id": "7F7BAB68-B558-5DB6-AA6E-CD988018327A",
+            "speaker": "me",
+            "text": "So the proposal is Pro at $16 instead of $18?",
+            "start": 21.0,
+            "end": 24.8
+          },
+          {
+            "id": "6CDBE767-09FD-5C5A-A369-EF07EB9490BC",
+            "speaker": "them",
+            "text": "Yes. Team stays at $30 per seat. That part tested fine.",
+            "start": 26.0,
+            "end": 30.2
+          },
+          {
+            "id": "1130124E-1341-5CB2-82FA-9DB3F0C13500",
+            "speaker": "them",
+            "text": "Priya. If Pro drops to $16 I'd also bump the annual discount to 25% to push people onto annual plans.",
+            "start": 31.4,
+            "end": 39.1
+          },
+          {
+            "id": "3541EA28-49A9-5B16-BFDF-907C76D7E321",
+            "speaker": "me",
+            "text": "Finance okay with 25%?",
+            "start": 40.3,
+            "end": 43.3
+          },
+          {
+            "id": "4A61AB36-168C-5E8E-BAD3-F6897B368BB2",
+            "speaker": "them",
+            "text": "They said yes as long as annual is at least 40% of new signups.",
+            "start": 44.5,
+            "end": 49.9
+          },
+          {
+            "id": "04769E45-8D7E-5E68-B374-1394114B9169",
+            "speaker": "me",
+            "text": "Okay, new decision: Pro is $16 a month, Team stays $30 per seat, annual discount goes to 25%.",
+            "start": 51.1,
+            "end": 58.0
+          },
+          {
+            "id": "393BAFCA-B756-5B87-8F56-97D60C6AE442",
+            "speaker": "them",
+            "text": "That means the pricing page needs another pass and Stripe needs updating. Can we move the launch?",
+            "start": 59.2,
+            "end": 65.7
+          },
+          {
+            "id": "B788A14B-1195-50E6-B647-C4DA2E4283C0",
+            "speaker": "me",
+            "text": "Let's move the pricing launch from November 15th to November 20th to be safe.",
+            "start": 66.9,
+            "end": 72.3
+          },
+          {
+            "id": "BC246C4E-B11F-57AE-94A8-C2F3711334BB",
+            "speaker": "them",
+            "text": "I'll update the pricing page copy by Monday.",
+            "start": 73.5,
+            "end": 76.6
+          },
+          {
+            "id": "6C58BEC8-DFE6-5248-8244-CA6E5FF63198",
+            "speaker": "them",
+            "text": "And I'll change the Stripe prices and fix the proration bug by Friday.",
+            "start": 77.8,
+            "end": 82.8
+          }
+        ]
+      },
+      "templateID": "general",
+      "recordedDuration": 89.0,
+      "endedAt": "2026-10-15T15:01:29Z",
+      "folder": "Product",
+      "enhancedNotes": "## Churn data\n- Beta users at $18 churned about twice as fast as at $15; $16 is the sweet spot (0:10)\n\n## Decision\n- Pro is now $16/month (was $18) (0:51)\n- Team stays at $30 per seat (0:26)\n- Annual discount rises to 25% (was 20%) (0:31)\n- Finance condition: annual must be at least 40% of new signups (0:44)\n\n## Launch\n- Pricing launch moves from November 15 to November 20 (1:06)\n\n## Action items\n- Priya: pricing page copy by Monday (1:13)\n- Marcus: Stripe prices and proration fix by Friday (1:17)"
+    },
+    {
+      "id": "ECA3277A-23B2-59B4-ADD0-DCA0F5595BEE",
+      "title": "1:1 with Dana",
+      "startedAt": "2026-10-16T18:00:00Z",
+      "roughNotes": "- career goals\n- on-call",
+      "transcript": {
+        "segments": [
+          {
+            "id": "44F4F0C8-0042-5A98-B63F-A211458F28CE",
+            "speaker": "me",
+            "text": "How are things going, Dana?",
+            "start": 4.0,
+            "end": 7.0
+          },
+          {
+            "id": "6F9718F9-F1B8-5417-887E-9CD51FDCA0BE",
+            "speaker": "them",
+            "text": "Mostly good. Busy with 2.4. But I wanted to talk about what's next for me.",
+            "start": 8.2,
+            "end": 14.0
+          },
+          {
+            "id": "5A983613-393A-522A-A285-E130DC70AD66",
+            "speaker": "me",
+            "text": "Sure, go for it.",
+            "start": 15.2,
+            "end": 18.2
+          },
+          {
+            "id": "C40E1AFC-2C00-53C5-8651-34AFAD687B62",
+            "speaker": "them",
+            "text": "I'd really like to lead the mobile app team when we start it next year. I built the iOS prototype on my own time.",
+            "start": 19.4,
+            "end": 28.6
+          },
+          {
+            "id": "2F38E8C5-3F3E-568E-9F8B-2DF4F19A96AE",
+            "speaker": "me",
+            "text": "I saw that, it's impressive. Leading mobile is realistic. Let's build a promotion case to senior engineer for Q1.",
+            "start": 29.8,
+            "end": 37.1
+          },
+          {
+            "id": "02A47DD7-E341-52EB-98AE-56A58A04D8C3",
+            "speaker": "them",
+            "text": "That would be great. The other thing is on-call. I've been on call three of the last four weeks.",
+            "start": 38.3,
+            "end": 45.6
+          },
+          {
+            "id": "79964E98-CFBC-502E-85BB-E4891108F80B",
+            "speaker": "me",
+            "text": "That's not okay. Let's move to a weekly rotation across the whole team starting next Monday.",
+            "start": 46.8,
+            "end": 53.0
+          },
+          {
+            "id": "BCB226A5-D725-5966-90D8-C26047B2E46C",
+            "speaker": "them",
+            "text": "Thank you. Also, could I get budget for the Swift conference in March?",
+            "start": 54.2,
+            "end": 59.2
+          },
+          {
+            "id": "7BB04A21-70C6-5C19-87D4-DB1C10BB5864",
+            "speaker": "me",
+            "text": "Yes, approved. Book it and expense it, up to $2,000 including travel.",
+            "start": 60.4,
+            "end": 65.0
+          },
+          {
+            "id": "77C0F7FC-EF71-5E0C-B7F6-17C775451F95",
+            "speaker": "them",
+            "text": "Perfect, thanks.",
+            "start": 66.2,
+            "end": 69.2
+          },
+          {
+            "id": "689D9626-A0C4-539C-9FD9-BEF225B996F1",
+            "speaker": "me",
+            "text": "I'll draft the promotion case outline by the end of the month and we'll go through it together.",
+            "start": 70.4,
+            "end": 77.3
+          }
+        ]
+      },
+      "templateID": "one-on-one",
+      "recordedDuration": 83.5,
+      "endedAt": "2026-10-16T18:01:23Z",
+      "enhancedNotes": "## Career\n- Dana wants to lead the mobile app next year; built the iOS prototype (0:19)\n- Build a promotion case to senior engineer for Q1 (0:29)\n\n## On-call\n- Dana was on call three of the last four weeks (0:38)\n- Weekly rotation across the whole team from next Monday (0:46)\n\n## Approved\n- Swift conference in March, up to $2,000 including travel (1:00)\n\n## Action items\n- Draft the promotion case outline by end of month (1:10)"
+    },
+    {
+      "id": "6266234E-8853-58C0-924A-8401DF4DCA91",
+      "title": "Acme SSO check-in",
+      "startedAt": "2026-10-20T17:30:00Z",
+      "roughNotes": "- okta status\n- EU data\n- pricing ask",
+      "transcript": {
+        "segments": [
+          {
+            "id": "F79F71CF-92EA-5C83-86A8-EE0486821EEA",
+            "speaker": "me",
+            "text": "Hi Janet, hi Raj. Let's start with SSO. Leo says the Okta integration is working in staging now.",
+            "start": 4.0,
+            "end": 10.9
+          },
+          {
+            "id": "5BC16D78-24F2-50E2-B27E-6ECE3657C4D9",
+            "speaker": "them",
+            "text": "Raj here. Yes, we tested it yesterday with 10 users. Login works, and group sync works too.",
+            "start": 12.1,
+            "end": 18.6
+          },
+          {
+            "id": "99DF29EA-2E1D-5FA6-893E-EDDCFFB09AAE",
+            "speaker": "me",
+            "text": "Great. Anything left before December 1st?",
+            "start": 19.8,
+            "end": 22.8
+          },
+          {
+            "id": "8EA4C909-8271-55A0-8784-F50752A4D3DE",
+            "speaker": "them",
+            "text": "Just SCIM deprovisioning. When someone leaves Acme, their seat should be removed automatically.",
+            "start": 24.0,
+            "end": 29.0
+          },
+          {
+            "id": "B4DCDC81-FAB4-520F-AB93-9E239D93F754",
+            "speaker": "me",
+            "text": "Leo can have SCIM deprovisioning done by November 10th.",
+            "start": 30.2,
+            "end": 33.7
+          },
+          {
+            "id": "58989DF5-7CC2-53E0-A0D2-E10E3EDDABA3",
+            "speaker": "them",
+            "text": "Janet. Legal read the data handling document, thank you. They're fine with meeting content staying on the Mac.",
+            "start": 34.9,
+            "end": 41.8
+          },
+          {
+            "id": "FFA25128-054C-5AE8-9999-7609EAE54E7E",
+            "speaker": "them",
+            "text": "But they still want account data in the EU. Is there a timeline?",
+            "start": 43.0,
+            "end": 48.0
+          },
+          {
+            "id": "1E9C447A-DBD8-5A87-8204-0A07969AE300",
+            "speaker": "me",
+            "text": "We'll have a Frankfurt region for account data by January. I can put that in the contract.",
+            "start": 49.2,
+            "end": 55.7
+          },
+          {
+            "id": "6EEAE69A-FFC1-5CB1-ABA9-4EAAC05969C1",
+            "speaker": "them",
+            "text": "That works. One more thing. With the new pricing, can we get a discount for 120 seats?",
+            "start": 56.9,
+            "end": 63.4
+          },
+          {
+            "id": "53E4978A-8F6C-5DC0-98E4-800B8C552005",
+            "speaker": "me",
+            "text": "We can do 10% off the first year if the contract is signed by November 30th.",
+            "start": 64.6,
+            "end": 70.8
+          },
+          {
+            "id": "4866AF0B-BCD5-5768-B764-76615A08DE56",
+            "speaker": "them",
+            "text": "I think we can make that. I'll take it to procurement this week.",
+            "start": 72.0,
+            "end": 77.0
+          },
+          {
+            "id": "6201900D-C5FD-53C2-8CA2-A0B56473205A",
+            "speaker": "me",
+            "text": "Great. I'll send the updated quote with the 10% and the Frankfurt commitment.",
+            "start": 78.2,
+            "end": 83.2
+          }
+        ]
+      },
+      "templateID": "customer-call",
+      "recordedDuration": 89.4,
+      "endedAt": "2026-10-20T17:31:29Z",
+      "folder": "Acme",
+      "enhancedNotes": "## SSO\n- Okta integration working in staging; tested with 10 users, group sync works (0:12)\n- Remaining: SCIM deprovisioning, done by November 10 (0:30)\n\n## Data residency\n- Legal accepts meeting content staying on the Mac (0:34)\n- Frankfurt region for account data by January, in the contract (0:49)\n\n## Commercial\n- 10% off the first year if signed by November 30 (1:04)\n\n## Next steps\n- Send updated quote with the discount and Frankfurt commitment (1:18)"
+    },
+    {
+      "id": "A4694D74-B54D-51BA-ADD5-A31DBDA35A99",
+      "title": "Team offsite planning",
+      "startedAt": "2026-10-22T16:00:00Z",
+      "roughNotes": "- where\n- when\n- budget",
+      "transcript": {
+        "segments": [
+          {
+            "id": "60731282-AB9C-5674-AEF0-215CE4ECEBEB",
+            "speaker": "me",
+            "text": "Let's plan the offsite. Options were Lisbon, Barcelona, or staying local.",
+            "start": 4.0,
+            "end": 8.2
+          },
+          {
+            "id": "9BBDCF6A-F082-51E3-A8AF-6F33BB874059",
+            "speaker": "them",
+            "text": "Leo. I priced it out. Lisbon is cheapest for flights from most of the team and the venues are great.",
+            "start": 9.4,
+            "end": 17.1
+          },
+          {
+            "id": "E5AE682C-CF78-533D-9C16-ABC2A742B0EE",
+            "speaker": "them",
+            "text": "Priya. Lisbon gets my vote. Barcelona hotels were almost double in January.",
+            "start": 18.3,
+            "end": 22.9
+          },
+          {
+            "id": "4B1BAD28-9BD7-592E-9A5D-E1CADB4EF8E5",
+            "speaker": "me",
+            "text": "Okay, Lisbon it is. Dates?",
+            "start": 24.1,
+            "end": 27.1
+          },
+          {
+            "id": "0B158867-02C6-566B-AF34-BBFAE94DA2E6",
+            "speaker": "them",
+            "text": "January 14th to 16th works for everyone except Marcus, who lands on the 15th.",
+            "start": 28.3,
+            "end": 33.7
+          },
+          {
+            "id": "BA704F20-CCD3-544D-A81A-CC8FA470083E",
+            "speaker": "me",
+            "text": "That's fine. January 14th to 16th in Lisbon. How many people?",
+            "start": 34.9,
+            "end": 39.1
+          },
+          {
+            "id": "1F8B7710-5CE9-5164-9D78-2D60C3BC77AC",
+            "speaker": "them",
+            "text": "18 including the 2 new hires, assuming Sam Okafor accepts.",
+            "start": 40.3,
+            "end": 44.1
+          },
+          {
+            "id": "C85A649B-8FB9-550B-B765-4299B88C8A4F",
+            "speaker": "me",
+            "text": "Budget?",
+            "start": 45.3,
+            "end": 48.3
+          },
+          {
+            "id": "3D9CA6EB-1B40-55BF-B6AA-4BBA3BD4A8DB",
+            "speaker": "them",
+            "text": "Finance approved $25,000 total, flights included.",
+            "start": 49.5,
+            "end": 52.5
+          },
+          {
+            "id": "5AE55307-D745-52A8-B81E-517EDD188AE2",
+            "speaker": "me",
+            "text": "Leo, can you book the venue? And Priya, the agenda?",
+            "start": 53.7,
+            "end": 57.5
+          },
+          {
+            "id": "1A30F56A-B1C6-5946-84CA-D6EDE913F077",
+            "speaker": "them",
+            "text": "I'll book the venue by November 1st.",
+            "start": 58.7,
+            "end": 61.7
+          },
+          {
+            "id": "EAAE4AE4-05D9-5123-B453-5B9E85E643A7",
+            "speaker": "them",
+            "text": "I'll draft the agenda. Day one roadmap, day two mobile app kickoff, day three is free.",
+            "start": 62.9,
+            "end": 69.1
+          }
+        ]
+      },
+      "templateID": "general",
+      "recordedDuration": 75.3,
+      "endedAt": "2026-10-22T16:01:15Z"
+    },
+    {
+      "id": "6D37FFBE-10B8-599A-B252-DB125DB6EE08",
+      "title": "Sam Okafor final round",
+      "startedAt": "2026-10-23T19:00:00Z",
+      "roughNotes": "- sam final\n- offer",
+      "transcript": {
+        "segments": [
+          {
+            "id": "64028081-B587-5964-8F51-E9E0BB1E5F6D",
+            "speaker": "me",
+            "text": "Final round debrief for Sam Okafor. Marcus, how did system design go?",
+            "start": 4.0,
+            "end": 8.6
+          },
+          {
+            "id": "050BB5A0-5FF6-51A5-9F31-0137716CF58C",
+            "speaker": "them",
+            "text": "Much better than the first time. He designed the sync service with offline clients from the start and talked through conflict resolution clearly.",
+            "start": 9.8,
+            "end": 18.6
+          },
+          {
+            "id": "1A0C455B-FECB-54EA-A9B4-4E55EE3745E4",
+            "speaker": "me",
+            "text": "So the concern from the first round is resolved?",
+            "start": 19.8,
+            "end": 23.3
+          },
+          {
+            "id": "05F4441E-EBD6-5FB6-B42A-6577BFB9215B",
+            "speaker": "them",
+            "text": "Yes, I'd say so. Strong hire.",
+            "start": 24.5,
+            "end": 27.5
+          },
+          {
+            "id": "4E375809-9439-5122-B267-06E73FC00322",
+            "speaker": "them",
+            "text": "Leo. Agreed. And he mentioned he has a competing offer from a fintech company.",
+            "start": 28.7,
+            "end": 34.1
+          },
+          {
+            "id": "6149A87B-3BDF-5C23-B433-8AFD36A4949B",
+            "speaker": "me",
+            "text": "Okay. Let's make the offer at the top of the band. $175,000 base.",
+            "start": 35.3,
+            "end": 40.3
+          },
+          {
+            "id": "E16C117F-2860-5642-A479-3714442E33DA",
+            "speaker": "them",
+            "text": "Can we do $175,000 plus the standard equity grant?",
+            "start": 41.5,
+            "end": 45.0
+          },
+          {
+            "id": "A9BAEE1E-9690-5F17-B1C7-784A49B5EB7A",
+            "speaker": "me",
+            "text": "Yes, $175,000 base plus standard equity. I'll send the offer today.",
+            "start": 46.2,
+            "end": 50.4
+          },
+          {
+            "id": "1DAE4700-5081-53C7-9307-36B61B72995F",
+            "speaker": "them",
+            "text": "Start date?",
+            "start": 51.6,
+            "end": 54.6
+          },
+          {
+            "id": "C65BD540-C161-5D7D-9ADE-ABA48543BF64",
+            "speaker": "me",
+            "text": "He asked for December 2nd. That's fine.",
+            "start": 55.8,
+            "end": 58.8
+          },
+          {
+            "id": "E106133D-72C5-5835-AB07-C1F25281C004",
+            "speaker": "them",
+            "text": "Great, I'll start the onboarding checklist and get his laptop ordered.",
+            "start": 60.0,
+            "end": 64.2
+          }
+        ]
+      },
+      "templateID": "general",
+      "recordedDuration": 70.4,
+      "endedAt": "2026-10-23T19:01:10Z",
+      "folder": "Hiring",
+      "enhancedNotes": "## Final round\n- System design much stronger: offline clients from the start, clear conflict resolution (0:09)\n- First-round concern resolved; strong hire (0:24)\n- Sam has a competing offer from a fintech company (0:28)\n\n## Offer\n- $175,000 base plus standard equity (0:46)\n- Start date December 2 (0:55)\n\n## Action items\n- Send the offer today (0:46)\n- Leo: onboarding checklist and laptop order (1:00)"
+    }
+  ]
+}
