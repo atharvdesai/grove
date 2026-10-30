@@ -89,6 +89,72 @@ final class MeetingLibrary {
         perform { try store.save(meeting.settingActionItem(item.text, done: done)) }
     }
 
+    // MARK: - Reviewing and polishing the user's notes
+
+    /// Polishes the meeting's own notes with the chosen engine (falling back
+    /// to on-device), cites them, and saves. Returns an error message, if any.
+    func polish(_ meeting: Meeting) async -> String? {
+        do {
+            let polished = try await withFallback { model in
+                try await NotePolisher(model: model).polish(
+                    roughNotes: meeting.roughNotes, transcript: meeting.transcript)
+            }
+            var updated = meeting
+            updated.polishedNotes = polished
+            perform { try store.save(updated) }
+            return nil
+        } catch {
+            return "Couldn't polish the notes: \(error.localizedDescription)"
+        }
+    }
+
+    /// Re-checks the meeting's notes against its transcript.
+    func review(_ meeting: Meeting) async -> String? {
+        do {
+            let conflicts = try await withFallback { model in
+                try await NoteChecker(model: model).check(
+                    roughNotes: meeting.roughNotes, transcript: meeting.transcript)
+            }
+            var updated = meeting
+            updated.noteConflicts = conflicts.isEmpty ? nil : conflicts
+            perform { try store.save(updated) }
+            return conflicts.isEmpty ? "Your notes match the transcript." : nil
+        } catch {
+            return "Couldn't check the notes: \(error.localizedDescription)"
+        }
+    }
+
+    func resolve(_ conflict: NoteConflict, in meeting: Meeting, useSuggestion: Bool) {
+        perform { try store.save(meeting.resolving(conflict, useSuggestion: useSuggestion)) }
+    }
+
+    /// Rewrites a saved meeting's notes with Claude — for meetings written
+    /// on-device before Claude was set up, or ones that matter more.
+    func rewriteWithClaude(_ meeting: Meeting) async -> String? {
+        guard let path = settings.claudeExecutable else { return "Claude Code isn't installed." }
+        do {
+            let notes = try await NoteEnhancer(model: ClaudeCodeEngine(executable: path)).enhance(
+                roughNotes: meeting.roughNotes, transcript: meeting.transcript,
+                template: template(id: meeting.templateID), meetingTitle: meeting.title)
+            var updated = meeting
+            updated.enhancedNotes = TimestampLinker.link(notes: notes, transcript: meeting.transcript)
+            perform { try store.save(updated) }
+            return nil
+        } catch {
+            return "Claude couldn't rewrite the notes: \(error.localizedDescription)"
+        }
+    }
+
+    /// Runs with the chosen engine, and once more on-device if that was
+    /// Claude and it failed.
+    private func withFallback<T>(_ work: (any NoteWritingModel) async throws -> T) async throws -> T {
+        do {
+            return try await work(settings.writingModel)
+        } catch where settings.usesClaude {
+            return try await work(FoundationModelsEngine())
+        }
+    }
+
     /// Names the far side of the call in place of "Them". Blank clears it.
     func setSpeakerName(_ name: String, for meeting: Meeting) {
         var updated = meeting
@@ -366,11 +432,17 @@ struct MeetingDetailView: View {
     @ViewState private var namingSpeaker = false
     @ViewState private var speakerDraft = ""
     @ViewState private var emailing = false
+    @ViewState private var reviewingConflicts = false
+    /// What's running on this meeting right now ("Polishing…"), if anything.
+    @ViewState private var working: String?
+    @ViewState private var workResult: String?
     @Environment(GoogleConnection.self) private var google
+    @Environment(AppSettings.self) private var settings
 
     enum Tab: String, CaseIterable, Identifiable {
         case notes = "Notes"
         case myNotes = "My notes"
+        case polished = "Polished"
         case transcript = "Transcript"
         var id: String { rawValue }
     }
@@ -427,6 +499,10 @@ struct MeetingDetailView: View {
                 Menu {
                     Button("Email Notes…") { emailing = true }
                         .disabled(!google.isSignedIn)
+                    Button("Rewrite Notes with Claude") {
+                        run("Claude is rewriting the notes…") { await library.rewriteWithClaude(meeting) }
+                    }
+                    .disabled(settings.claudeExecutable == nil || working != nil)
                     Button("Name the Other Speaker…") {
                         speakerDraft = meeting.speakerName ?? ""
                         namingSpeaker = true
@@ -449,6 +525,39 @@ struct MeetingDetailView: View {
             .padding(.horizontal, 20)
             .padding(.top, 16)
             .padding(.bottom, 10)
+
+            if let conflicts = meeting.noteConflicts, !conflicts.isEmpty {
+                Button {
+                    reviewingConflicts = true
+                } label: {
+                    Label(
+                        conflicts.count == 1
+                            ? "One of your notes doesn't match the transcript — review"
+                            : "\(conflicts.count) of your notes don't match the transcript — review",
+                        systemImage: "exclamationmark.bubble")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 8)
+            }
+
+            if let working {
+                Label(working, systemImage: "sparkles")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 8)
+            } else if let workResult {
+                Text(workResult)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 8)
+            }
 
             if let email = google.lastEmail, email.meetingID == meeting.id {
                 Label(email.result, systemImage: "envelope")
@@ -487,6 +596,9 @@ struct MeetingDetailView: View {
             }
         }
         .sheet(isPresented: $emailing) { EmailNotesSheet(meeting: meeting) }
+        .sheet(isPresented: $reviewingConflicts) {
+            NoteConflictsSheet(meeting: meeting) { time in seekInTranscript(to: time) }
+        }
         .alert("Who is “Them” in this meeting?", isPresented: $namingSpeaker) {
             TextField("Name", text: $speakerDraft)
             Button("Cancel", role: .cancel) {}
@@ -544,6 +656,7 @@ struct MeetingDetailView: View {
             switch tab {
             case .notes: return meeting.enhancedNotes != nil
             case .myNotes: return !meeting.roughNotes.trimmed.isEmpty
+            case .polished: return meeting.polishedNotes != nil
             case .transcript: return !meeting.transcript.isEmpty
             }
         }
@@ -559,9 +672,44 @@ struct MeetingDetailView: View {
                 Text("These notes were not enhanced.").foregroundStyle(.secondary)
             }
         case .myNotes:
-            Text(meeting.roughNotes)
-                .font(.system(size: 14))
-                .textSelection(.enabled)
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 10) {
+                    Button {
+                        run("Polishing your notes…") {
+                            let error = await library.polish(meeting)
+                            if error == nil { tab = .polished }
+                            return error
+                        }
+                    } label: {
+                        Label("Polish & Cite", systemImage: "wand.and.stars")
+                    }
+                    .help("Tidy your notes and link each line to the transcript moment behind it")
+                    Button {
+                        run("Checking your notes against the transcript…") {
+                            await library.review(meeting)
+                        }
+                    } label: {
+                        Label("Check Against Transcript", systemImage: "checkmark.bubble")
+                    }
+                    .help("Find notes the transcript says otherwise about")
+                }
+                .disabled(working != nil || meeting.transcript.isEmpty)
+
+                Text(meeting.roughNotes)
+                    .font(.system(size: 14))
+                    .textSelection(.enabled)
+            }
+        case .polished:
+            VStack(alignment: .leading, spacing: 12) {
+                Text(
+                    "Your notes, tidied. A time after a line is the moment in the transcript "
+                        + "that backs it — click it to check. Lines without one weren't found in "
+                        + "the transcript.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                NotesText(markdown: meeting.polishedNotes ?? "") { time in seekInTranscript(to: time) }
+            }
         case .transcript:
             VStack(alignment: .leading, spacing: 14) {
                 ForEach(meeting.transcript.merged()) { segment in
@@ -593,6 +741,18 @@ struct MeetingDetailView: View {
 
     private var folder: URL { library.store.directory(for: meeting) }
 
+    /// Runs a slow AI job on this meeting with a status line, and shows its
+    /// message afterwards (an error, or "your notes match").
+    private func run(_ status: String, _ job: @escaping () async -> String?) {
+        working = status
+        workResult = nil
+        Task {
+            let result = await job()
+            working = nil
+            workResult = result
+        }
+    }
+
     private func exportNotes() {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "md") ?? .plainText]
@@ -612,6 +772,7 @@ struct MeetingDetailView: View {
         switch selectedTab {
         case .notes: return "Copy Notes"
         case .myNotes: return "Copy My Notes"
+        case .polished: return "Copy Polished Notes"
         case .transcript: return "Copy Transcript"
         }
     }
@@ -620,6 +781,7 @@ struct MeetingDetailView: View {
         switch selectedTab {
         case .notes: return meeting.enhancedNotes ?? ""
         case .myNotes: return meeting.roughNotes
+        case .polished: return meeting.polishedNotes ?? ""
         case .transcript:
             // Speaker-labelled and timestamped, so a pasted transcript still
             // says who said what and when.

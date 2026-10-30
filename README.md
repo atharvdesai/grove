@@ -68,6 +68,24 @@ email, and it is the only thing in the app that talks to anyone.
 - **A real first run** — sign in, grant the two audio permissions, pick folders
   like Work, School or Clients for Grove to file meetings into, and choose how
   it should behave when a call starts.
+- **Claude, on your own plan** (optional) — in Settings → AI, switch note
+  writing, naming, chat and digests to Claude Haiku 5.5. Grove runs the Claude
+  Code app already signed in on your Mac, so it uses your Claude plan with no
+  API key and no Grove account. Every meeting is processed the moment it is
+  saved; if Claude can't run, the on-device model takes over and says so.
+- **Better long-meeting notes on-device** — long transcripts are split where the
+  topic changes, every decision, action, number and open question is pulled out
+  of each part, revisions replace earlier values, and the notes are written
+  from that fact sheet.
+- **In-person and lectures** — "Record In Person" uses the microphone alone, and
+  the Lecture template turns a class into a study guide with definitions,
+  examples and likely exam questions.
+- **Checks your notes** — when a meeting ends, any line you typed that the
+  transcript contradicts ("$18" when everyone said "$16") is flagged, with
+  what was actually said, when, and a one-click fix.
+- **Polish & Cite** — tidies your own notes without adding anything, and ends
+  every line with the transcript moment that backs it, so each line can be
+  checked with a click.
 - **Plain files, no lock-in** — Markdown + JSON in `~/Documents/Grove`.
   Greppable, syncable, Obsidian-friendly.
 - Menu bar recording, pause/resume, folders, templates, meeting resume,

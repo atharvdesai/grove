@@ -105,24 +105,35 @@ final class NoteEnhancerEngineTests: XCTestCase {
         XCTAssertTrue(call.instructions.contains("Naming a topic is not discussing it"))
     }
 
-    func testLongMeetingIsCondensedChunkwiseBeforeTheFinalPass() async throws {
+    func testLongMeetingIsReducedToFactsBeforeTheFinalPass() async throws {
         // Limits chosen so the transcript must split: 10 segments x 30 words.
-        let engine = StubEngine(singlePassWordLimit: 100, chunkWordLimit: 60)
+        let engine = StubEngine(
+            singlePassWordLimit: 100, chunkWordLimit: 60, response: "DECISION: ship on Friday")
         let enhancer = NoteEnhancer(model: engine)
 
         _ = try await enhancer.enhance(
             roughNotes: "", transcript: transcript(wordsPerSegment: 30, segments: 10))
 
         XCTAssertGreaterThan(
-            engine.calls.count, 1, "a long transcript must be condensed before the final pass")
+            engine.calls.count, 2, "a long transcript must be split before the final pass")
+        XCTAssertTrue(
+            engine.calls.dropLast().allSatisfy { $0.instructions.contains("extract facts") },
+            "every call but the last extracts facts from one part")
+        let final = try XCTUnwrap(engine.calls.last)
+        XCTAssertTrue(final.instructions.contains("polished notes"), "the final call writes the notes")
+        XCTAssertTrue(final.prompt.contains("DECISION: ship on Friday"), "it writes from the facts")
+    }
 
-        let condensingCalls = engine.calls.dropLast()
+    func testNoExtractableFactsFallsBackToCondensing() async throws {
+        let engine = StubEngine(singlePassWordLimit: 100, chunkWordLimit: 60)
+        let enhancer = NoteEnhancer(model: engine)
+
+        _ = try await enhancer.enhance(
+            roughNotes: "", transcript: transcript(wordsPerSegment: 30, segments: 10))
+
         XCTAssertTrue(
-            condensingCalls.allSatisfy { $0.instructions.contains("compress") },
-            "every call but the last should be a compression pass")
-        XCTAssertTrue(
-            try XCTUnwrap(engine.calls.last).instructions.contains("polished notes"),
-            "the final call writes the notes")
+            engine.calls.contains { $0.instructions.contains("compress") },
+            "with no facts to go on, the old condensing path still runs")
     }
 
     func testEngineFailurePropagatesRatherThanReturningPartialNotes() async {

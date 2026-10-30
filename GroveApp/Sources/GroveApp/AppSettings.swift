@@ -48,6 +48,19 @@ final class AppSettings {
         }
     }
 
+    /// Which model writes notes, names meetings, answers chat and digests.
+    enum AIEngine: String, CaseIterable, Identifiable, Sendable {
+        case onDevice, claude
+        var id: String { rawValue }
+
+        var label: String {
+            switch self {
+            case .onDevice: return "On this Mac (Apple)"
+            case .claude: return "Claude Haiku 5.5 (your Claude plan)"
+            }
+        }
+    }
+
     private enum Key {
         static let appearance = "appearance"
         static let defaultTemplate = "defaultTemplateID"
@@ -61,6 +74,7 @@ final class AppSettings {
         static let useCalendar = "useCalendar"
         static let emailSummaries = "emailSummaries"
         static let userName = "userName"
+        static let aiEngine = "aiEngine"
     }
 
     private let defaults: UserDefaults
@@ -126,6 +140,24 @@ final class AppSettings {
         didSet { defaults.set(userName, forKey: Key.userName) }
     }
 
+    var aiEngine: AIEngine {
+        didSet { defaults.set(aiEngine.rawValue, forKey: Key.aiEngine) }
+    }
+
+    /// Where Claude Code is installed, if it is. Not persisted: re-found each
+    /// launch, and on demand from Settings after installing it.
+    private(set) var claudeExecutable: URL? = ClaudeCodeEngine.located
+
+    func recheckClaude() { claudeExecutable = ClaudeCodeEngine.locate() }
+
+    /// Claude is chosen *and* installed. Anything else means on-device.
+    var usesClaude: Bool { aiEngine == .claude && claudeExecutable != nil }
+
+    /// The engine every AI feature should use right now.
+    var writingModel: any NoteWritingModel {
+        usesClaude ? ClaudeCodeEngine(executable: claudeExecutable) : FoundationModelsEngine()
+    }
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         self.appearance =
@@ -145,6 +177,7 @@ final class AppSettings {
         self.useCalendar = defaults.bool(forKey: Key.useCalendar)
         self.emailSummaries = defaults.object(forKey: Key.emailSummaries) as? Bool ?? true
         self.userName = defaults.string(forKey: Key.userName) ?? ""
+        self.aiEngine = AIEngine(rawValue: defaults.string(forKey: Key.aiEngine) ?? "") ?? .onDevice
         if hasCompletedOnboarding { setUpOpenAtLoginOnce() }
     }
 

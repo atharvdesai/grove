@@ -195,6 +195,15 @@ private struct MenuBarContent: View {
             NotificationCenter.default.post(name: .toggleQuickNotes, object: nil)
         }
 
+        if !session.isBusy {
+            // A lecture has no call to detect, so it gets its own one-click start.
+            Button("Record In Person (Lecture)") {
+                session.inPerson = true
+                session.templateID = NoteTemplate.lecture.id
+                Task { await session.start() }
+            }
+        }
+
         Button("Open Grove") {
             openWindow(id: "main")
             NSApplication.shared.activate(ignoringOtherApps: true)
@@ -337,6 +346,7 @@ private struct NewMeetingSheet: View {
     @ViewState private var title = ""
     @ViewState private var templateID = ""
     @ViewState private var folder: FolderChoice = .automatic
+    @ViewState private var inPerson = false
     @FocusState private var titleFocused: Bool
 
     /// "Automatic" and "Meetings" both end with no folder chosen up front; the
@@ -361,6 +371,13 @@ private struct NewMeetingSheet: View {
                 Picker("Template", selection: $templateID) {
                     ForEach(library.templates) { Text($0.name).tag($0.id) }
                 }
+
+                Toggle("In person — a lecture or a room, not a call", isOn: $inPerson)
+                    .onChange(of: inPerson) { _, isOn in
+                        if isOn, templateID == NoteTemplate.general.id {
+                            templateID = NoteTemplate.lecture.id
+                        }
+                    }
 
                 Picker("Folder", selection: $folder) {
                     if settings.autoOrganize {
@@ -393,6 +410,7 @@ private struct NewMeetingSheet: View {
     private func start() {
         session.title = title
         session.templateID = templateID.isEmpty ? settings.defaultTemplateID : templateID
+        session.inPerson = inPerson
         switch folder {
         case .automatic:
             session.folder = nil

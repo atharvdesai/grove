@@ -47,7 +47,18 @@ public struct NoteTemplate: Sendable, Codable, Identifiable, Equatable {
             "Quote the customer's own words for pain points and objections rather "
             + "than paraphrasing them.")
 
-    public static let builtIns: [NoteTemplate] = [general, oneOnOne, standup, customerCall]
+    public static let lecture = NoteTemplate(
+        id: "lecture",
+        name: "Lecture",
+        sections: [
+            "Key concepts", "Definitions", "Examples", "Likely exam questions", "To review",
+        ],
+        guidance:
+            "Write a study guide, not minutes. Define every term the lecturer defined, "
+            + "keep their examples, and turn anything they stressed (\"this will be on the "
+            + "exam\", repetition, \"remember\") into a likely exam question.")
+
+    public static let builtIns: [NoteTemplate] = [general, oneOnOne, standup, customerCall, lecture]
 
     public static func named(_ id: String) -> NoteTemplate {
         builtIns.first { $0.id == id } ?? .general

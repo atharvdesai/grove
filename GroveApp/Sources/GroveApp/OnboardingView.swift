@@ -268,6 +268,21 @@ struct OnboardingView: View {
             }
 
             Feature(
+                icon: "brain",
+                title: "Sharper notes with Claude",
+                detail: settings.claudeExecutable == nil
+                    ? "Install Claude Code to have Claude Haiku 5.5 write your notes on your own plan."
+                    : "Use Claude Haiku 5.5 through Claude Code on this Mac, on your own plan. "
+                        + "Off means everything stays on this Mac.") {
+                Toggle("", isOn: Binding(
+                    get: { settings.aiEngine == .claude },
+                    set: { settings.aiEngine = $0 ? .claude : .onDevice }))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .disabled(settings.claudeExecutable == nil)
+            }
+
+            Feature(
                 icon: "sparkles",
                 title: "Named and filed for you",
                 detail: "Untitled meetings get a real name and land in the right folder.") {

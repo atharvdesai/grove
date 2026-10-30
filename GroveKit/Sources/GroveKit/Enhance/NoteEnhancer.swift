@@ -58,10 +58,18 @@ public struct NoteEnhancer: Sendable {
                     + "too little to write up without inventing the rest")
         }
 
-        let source =
-            wordCount(text) > model.singlePassWordLimit
-            ? try await condense(text)
-            : text
+        var source = text
+        var evidence = Evidence.transcript
+        if wordCount(text) > model.singlePassWordLimit {
+            // Too long to read at once: facts per topic, then write from those.
+            let sheet = try await factSheet(transcript)
+            if sheet.isEmpty {
+                source = try await condense(text)
+            } else {
+                source = sheet
+                evidence = .facts
+            }
+        }
 
         return try await model.generate(
             instructions: instructions(for: template),
@@ -69,7 +77,25 @@ public struct NoteEnhancer: Sendable {
                 transcript: source,
                 roughNotes: roughNotes,
                 template: template,
-                meetingTitle: meetingTitle))
+                meetingTitle: meetingTitle,
+                evidence: evidence))
+    }
+
+    enum Evidence { case transcript, facts }
+
+    /// Splits the transcript at topic changes, extracts every decision,
+    /// action, number and open question from each part, and merges them. See
+    /// `TopicSegmenter` and `FactSheet` for why this beats condensing.
+    func factSheet(_ transcript: Transcript) async throws -> String {
+        var facts: [MeetingFact] = []
+        for chunk in TopicSegmenter.chunks(transcript, maxWords: model.chunkWordLimit) {
+            let response = try await model.generate(
+                instructions: FactSheet.extractionInstructions, prompt: chunk.formatted())
+            facts += FactSheet.parse(response, time: chunk.start)
+        }
+        // Leave room in the final pass for the instructions and the user's notes.
+        return FactSheet.render(
+            FactSheet.merge(facts), maxWords: model.singlePassWordLimit - 300)
     }
 
     // MARK: - Prompting
@@ -116,7 +142,8 @@ public struct NoteEnhancer: Sendable {
     }
 
     private func prompt(
-        transcript: String, roughNotes: String, template: NoteTemplate, meetingTitle: String?
+        transcript: String, roughNotes: String, template: NoteTemplate, meetingTitle: String?,
+        evidence: Evidence = .transcript
     ) -> String {
         let trimmedNotes = roughNotes.trimmingCharacters(in: .whitespacesAndNewlines)
         let notesBlock =
@@ -124,8 +151,14 @@ public struct NoteEnhancer: Sendable {
             ? "(The user took no notes. Use the template sections and keep it brief.)"
             : trimmedNotes
 
+        let evidenceLabel =
+            evidence == .facts
+            ? "Facts extracted from the full transcript, each with the time it came up "
+                + "(treat them as the transcript; later facts supersede earlier ones):"
+            : "Transcript:"
+
         return """
-            \(meetingTitle.map { "Meeting: \($0)\n" } ?? "")Transcript:
+            \(meetingTitle.map { "Meeting: \($0)\n" } ?? "")\(evidenceLabel)
 
             <transcript>
             \(transcript)

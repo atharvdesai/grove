@@ -59,6 +59,13 @@ public final class MeetingRecorder: @unchecked Sendable {
     /// Called on an arbitrary thread as each final segment lands.
     public var onSegment: (@Sendable (TranscriptSegment) -> Void)?
 
+    /// In-person mode — a lecture, a meeting round a table. Everyone is in the
+    /// room, so there is no far side to tap: the microphone is the whole
+    /// meeting, and it is labelled as the other side rather than "Me", because
+    /// in a lecture the person talking is not the person taking notes.
+    /// Set before `start`.
+    public var inPerson = false
+
     public var systemAudioDevice: String { tap.outputDeviceName }
     public var frameLossFraction: Double { tap.frameLossFraction }
 
@@ -77,19 +84,28 @@ public final class MeetingRecorder: @unchecked Sendable {
             self.onSegment?(segment)
         }
 
-        // Prepare the tap before starting anything: building the aggregate
-        // device is the slow step, and starting the mic first would skew the
-        // two channels' timelines relative to each other.
-        try tap.prepare()
+        if inPerson && !microphoneAvailable {
+            throw CaptureError.message(
+                "Recording in person needs the microphone. Allow it in System Settings → "
+                    + "Privacy & Security → Microphone.")
+        }
 
-        // Voice activity detection runs on the microphone only. The mic hears
-        // the room and the transcriber turns room tone into invented sentences;
-        // the tap is a clean digital copy with nothing to reject.
-        systemChannel = try await SpeechChannel.make(
-            speaker: .them, locale: locale, onSegment: collect)
+        if !inPerson {
+            // Prepare the tap before starting anything: building the aggregate
+            // device is the slow step, and starting the mic first would skew the
+            // two channels' timelines relative to each other.
+            try tap.prepare()
+
+            // Voice activity detection runs on the microphone only. The mic hears
+            // the room and the transcriber turns room tone into invented sentences;
+            // the tap is a clean digital copy with nothing to reject.
+            systemChannel = try await SpeechChannel.make(
+                speaker: .them, locale: locale, onSegment: collect)
+        }
         if microphoneAvailable {
             microphoneChannel = try await SpeechChannel.make(
-                speaker: .me, locale: locale, detectVoiceActivity: true, onSegment: collect)
+                speaker: inPerson ? .them : .me, locale: locale, detectVoiceActivity: true,
+                onSegment: collect)
         }
 
         // One origin shared by both channels, established before either starts.

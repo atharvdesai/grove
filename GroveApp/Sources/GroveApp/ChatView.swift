@@ -12,6 +12,7 @@ import SwiftUI
 /// is ever called.
 struct ChatView: View {
     @Environment(MeetingLibrary.self) private var library
+    @Environment(AppSettings.self) private var settings
     @Environment(\.dismiss) private var dismiss
 
     @ViewState private var question = ""
@@ -116,7 +117,7 @@ struct ChatView: View {
             }
         }
         .frame(minWidth: 540, minHeight: 440)
-        .task { availability = MeetingChat().availability }
+        .task { availability = MeetingChat(model: settings.writingModel).availability }
     }
 
     /// Opens the cited meeting at the cited moment. The notification carries
@@ -139,7 +140,7 @@ struct ChatView: View {
         Task {
             defer { isAsking = false }
             do {
-                let answer = try await MeetingChat().ask(
+                let answer = try await MeetingChat(model: settings.writingModel).ask(
                     question: asked, meetings: library.meetings)
                 if let index = turns.firstIndex(where: { $0.id == turn.id }) {
                     turns[index].answer = answer

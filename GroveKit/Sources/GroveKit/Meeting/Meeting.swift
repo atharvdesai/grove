@@ -38,6 +38,18 @@ public struct Meeting: Codable, Sendable, Identifiable, Equatable {
     /// position so editing notes.md by hand cannot tick the wrong item.
     public var completedActionItems: [String]?
 
+    /// Recorded in a room rather than on a call: one microphone, everyone on
+    /// it, transcribed as the other side.
+    public var inPerson: Bool?
+
+    /// The user's own notes, tidied and cited to the transcript. See
+    /// `NotePolisher`.
+    public var polishedNotes: String?
+
+    /// Lines of the user's notes the transcript contradicts, waiting for the
+    /// user to keep or fix. Cleared as each is answered.
+    public var noteConflicts: [NoteConflict]?
+
     public init(
         id: UUID = UUID(),
         title: String,
@@ -51,7 +63,10 @@ public struct Meeting: Codable, Sendable, Identifiable, Equatable {
         recordedDuration: TimeInterval? = nil,
         attendees: [String]? = nil,
         speakerName: String? = nil,
-        completedActionItems: [String]? = nil
+        completedActionItems: [String]? = nil,
+        inPerson: Bool? = nil,
+        polishedNotes: String? = nil,
+        noteConflicts: [NoteConflict]? = nil
     ) {
         self.id = id
         self.title = title
@@ -66,6 +81,26 @@ public struct Meeting: Codable, Sendable, Identifiable, Equatable {
         self.attendees = attendees
         self.speakerName = speakerName
         self.completedActionItems = completedActionItems
+        self.inPerson = inPerson
+        self.polishedNotes = polishedNotes
+        self.noteConflicts = noteConflicts
+    }
+
+    /// Answers a conflict: with `useSuggestion`, the note line is replaced by
+    /// the transcript-matching rewrite; either way the question goes away.
+    public func resolving(_ conflict: NoteConflict, useSuggestion: Bool) -> Meeting {
+        var copy = self
+        if useSuggestion, let suggestion = conflict.suggestion {
+            copy.roughNotes = roughNotes.split(separator: "\n", omittingEmptySubsequences: false)
+                .map { line in
+                    guard line.contains(conflict.note) else { return String(line) }
+                    return line.replacingOccurrences(of: conflict.note, with: suggestion)
+                }
+                .joined(separator: "\n")
+        }
+        let remaining = (noteConflicts ?? []).filter { $0.id != conflict.id }
+        copy.noteConflicts = remaining.isEmpty ? nil : remaining
+        return copy
     }
 
     /// The label for a speaker in this meeting: "Me", or the other side's
@@ -76,6 +111,7 @@ public struct Meeting: Codable, Sendable, Identifiable, Equatable {
         {
             return name
         }
+        if speaker == .them, inPerson == true { return "Room" }
         return speaker.displayName
     }
 

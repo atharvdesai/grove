@@ -38,6 +38,8 @@ final class MeetingSession {
     /// The call app that prompted this recording, when detection started it.
     /// Feeds the fallback title and gives the namer a hint.
     private(set) var meetingApp: String?
+    /// A lecture or a meeting round a table: microphone only, no call audio.
+    var inPerson = false
     /// The calendar event this recording matched, when calendar use is on.
     private(set) var calendarEvent: CalendarEvent?
 
@@ -108,6 +110,7 @@ final class MeetingSession {
         templateID = meeting.templateID
         folder = meeting.folder
         folderIsAutomatic = false
+        inPerson = meeting.inPerson == true
         await start()
     }
 
@@ -128,6 +131,7 @@ final class MeetingSession {
         elapsed = 0
 
         let recorder = MeetingRecorder()
+        recorder.inPerson = inPerson
         recorder.onSegment = { [weak self] _ in
             // Audio-thread adjacent: hop before touching any observable state.
             Task { @MainActor [weak self] in self?.refreshSegments() }
@@ -229,13 +233,15 @@ final class MeetingSession {
             speakerName: resuming?.speakerName ?? eventAttendees.flatMap {
                 $0.count == 1 ? $0.first : nil
             },
-            completedActionItems: resuming?.completedActionItems)
+            completedActionItems: resuming?.completedActionItems,
+            inPerson: inPerson ? true : nil)
 
         // Never skip this silently. A meeting that comes back as "transcript
         // only" with no explanation looks like the app quietly did half its job,
         // and the reason is exactly what the user needs to fix it.
         let spokenWords = NoteEnhancer.spokenWordCount(transcript)
-        switch NoteEnhancer.availability {
+        let enhancer = NoteEnhancer(model: settings.writingModel)
+        switch enhancer.availability {
         case .available where transcript.isEmpty:
             break
         case _ where spokenWords < NoteEnhancer.minimumTranscriptWords:
@@ -248,13 +254,11 @@ final class MeetingSession {
         case .available:
             phase = .enhancing
             do {
-                let enhanced = try await NoteEnhancer().enhance(
-                    roughNotes: roughNotes,
-                    transcript: transcript,
-                    template: store.template(id: templateID),
+                let enhanced = try await writeNotes(
+                    with: enhancer, transcript: transcript,
                     // A placeholder like "Meeting Thursday 14:00" tells the
                     // model nothing and invites it to echo the date back.
-                    meetingTitle: titleIsAutomatic ? nil : meeting.title)
+                    title: titleIsAutomatic ? nil : meeting.title)
                 meeting.enhancedNotes = TimestampLinker.link(
                     notes: enhanced, transcript: transcript)
             } catch {
@@ -263,7 +267,14 @@ final class MeetingSession {
                 errorMessage = "Could not write up the notes: \(error.localizedDescription)\n\nYour transcript and notes are saved."
             }
         case .unavailable(let reason):
-            errorMessage = "The on-device writing model is unavailable (\(reason)).\n\nYour transcript and notes are saved."
+            errorMessage = "The writing model is unavailable (\(reason)).\n\nYour transcript and notes are saved."
+        }
+
+        // Ask about notes the transcript contradicts, while the meeting is
+        // still fresh enough to remember which is right.
+        if !roughNotes.trimmed.isEmpty, !transcript.isEmpty {
+            phase = .enhancing
+            meeting.noteConflicts = await checkNotes(roughNotes, against: transcript)
         }
 
         if settings.autoOrganize, resuming == nil,
@@ -289,6 +300,7 @@ final class MeetingSession {
         folderIsAutomatic = true
         meetingApp = nil
         calendarEvent = nil
+        inPerson = false
         resuming = nil
         templateID = settings.defaultTemplateID
         return meeting
@@ -298,8 +310,43 @@ final class MeetingSession {
     ///
     /// Best effort by design: a meeting saved under its fallback title is fine,
     /// and nothing about naming is worth an error message on top of the notes.
+    /// Writes the notes with the chosen engine. If that's Claude and Claude
+    /// fails — not signed in, plan limit reached, offline — the on-device model
+    /// writes them instead, and the user is told why.
+    private func writeNotes(
+        with enhancer: NoteEnhancer, transcript: Transcript, title: String?
+    ) async throws -> String {
+        let template = store.template(id: templateID)
+        do {
+            return try await enhancer.enhance(
+                roughNotes: roughNotes, transcript: transcript, template: template,
+                meetingTitle: title)
+        } catch where enhancer.model is ClaudeCodeEngine && NoteEnhancer.availability == .available {
+            errorMessage =
+                "Claude couldn't write these notes (\(error.localizedDescription)), "
+                + "so the on-device model did."
+            return try await NoteEnhancer().enhance(
+                roughNotes: roughNotes, transcript: transcript, template: template,
+                meetingTitle: title)
+        }
+    }
+
+    /// Best effort: a check that can't run just finds nothing to ask about.
+    private func checkNotes(_ notes: String, against transcript: Transcript) async -> [NoteConflict]? {
+        let models: [any NoteWritingModel] = [settings.writingModel, FoundationModelsEngine()]
+        for model in models where model.availability == .available {
+            if let found = try? await NoteChecker(model: model).check(
+                roughNotes: notes, transcript: transcript)
+            {
+                return found.isEmpty ? nil : found
+            }
+        }
+        return nil
+    }
+
     private func organize(_ meeting: inout Meeting, nameIt: Bool, fileIt: Bool) async {
-        let namer = MeetingNamer()
+        var namer = MeetingNamer(model: settings.writingModel)
+        if namer.availability != .available { namer = MeetingNamer() }
         guard namer.availability == .available else { return }
 
         let existing = (try? store.list()) ?? []
@@ -309,13 +356,15 @@ final class MeetingSession {
                 recentTitles: existing.filter { $0.folder == name }.prefix(3).map(\.title))
         }
 
-        guard
-            let suggestion = try? await namer.suggest(
-                transcript: meeting.transcript,
-                notes: meeting.enhancedNotes ?? meeting.roughNotes,
-                folders: fileIt ? folders : [],
-                appName: meetingApp)
-        else { return }
+        let notes = meeting.enhancedNotes ?? meeting.roughNotes
+        let offered = fileIt ? folders : []
+        var suggestion = try? await namer.suggest(
+            transcript: meeting.transcript, notes: notes, folders: offered, appName: meetingApp)
+        if suggestion == nil, namer.model is ClaudeCodeEngine {
+            suggestion = try? await MeetingNamer().suggest(
+                transcript: meeting.transcript, notes: notes, folders: offered, appName: meetingApp)
+        }
+        guard let suggestion else { return }
 
         if nameIt { meeting.title = suggestion.title }
         if fileIt, let folder = suggestion.folder { meeting.folder = folder }

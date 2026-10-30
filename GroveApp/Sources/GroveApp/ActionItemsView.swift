@@ -118,6 +118,7 @@ private struct ActionItemRow: View {
 /// A summary of the last seven days of meetings, written on-device.
 struct DigestView: View {
     @Environment(MeetingLibrary.self) private var library
+    @Environment(AppSettings.self) private var settings
     @Environment(\.dismiss) private var dismiss
     @ViewState private var digest: String?
     @ViewState private var writing = false
@@ -180,9 +181,9 @@ struct DigestView: View {
     }
 
     private func write() async {
-        let writer = MeetingDigest()
+        let writer = MeetingDigest(model: settings.writingModel)
         if case .unavailable(let reason) = writer.availability {
-            failure = "The on-device model is unavailable (\(reason))."
+            failure = "The writing model is unavailable (\(reason))."
             return
         }
         writing = true
